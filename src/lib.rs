@@ -2,6 +2,8 @@
 // Licensed under the Apache License, Version 2.0
 
 pub fn add(left: u64, right: u64) -> u64 {
+    // #[cfg(unix)]
+    // compile_error!("Oh noes");
     left + right
 }
 
