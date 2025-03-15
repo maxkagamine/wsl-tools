@@ -3,7 +3,12 @@
 
 #[cfg(windows)]
 fn main() -> Result<(), windows::core::Error> {
-    wsl_tools::clipboard::set_text("鏡音リン")
+    // wsl_tools::clipboard::set_text("鏡音リン")
+    match wsl_tools::clipboard::get_text()? {
+        Some(text) => println!("*{text}*"),
+        None => println!("No text on clipboard"),
+    };
+    Ok(())
 }
 
 #[cfg(unix)]

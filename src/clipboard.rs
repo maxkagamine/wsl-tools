@@ -5,15 +5,19 @@
 
 use windows::{
     Win32::{
-        Foundation::HANDLE,
+        Foundation::{HANDLE, HGLOBAL},
         System::{
-            DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData},
+            DataExchange::{
+                CloseClipboard, EmptyClipboard, GetClipboardData, IsClipboardFormatAvailable,
+                OpenClipboard, SetClipboardData,
+            },
             Memory::{GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalUnlock},
-            Ole::CF_UNICODETEXT,
         },
     },
-    core::{Error, Result},
+    core::{Error, PWSTR, Result},
 };
+
+const CF_UNICODETEXT: u32 = 13;
 
 /// Copies `text` to the clipboard.
 ///
@@ -60,9 +64,60 @@ pub fn set_text(text: &str) -> Result<()> {
             })?;
 
             // Place the handle on the clipboard
-            SetClipboardData(u32::from(CF_UNICODETEXT.0), Some(HANDLE(hglobal.0)))?;
+            SetClipboardData(CF_UNICODETEXT, Some(HANDLE(hglobal.0)))?;
 
             Ok(())
+        })();
+
+        // Close the clipboard and return the result
+        let _ = CloseClipboard();
+        result
+    }
+}
+
+/// Gets the contents of the clipboard as Unicode text.
+///
+/// # Returns
+/// `Some` if the clipboard contains text; `None` if it does not.
+///
+/// # Errors
+/// Error result contains the Win32 error if the operation failed.
+pub fn get_text() -> Result<Option<String>> {
+    unsafe {
+        // Check if clipboard contains text
+        if IsClipboardFormatAvailable(CF_UNICODETEXT).is_err() {
+            return Ok(None);
+        }
+
+        // Open the clipboard
+        OpenClipboard(None)?;
+
+        // Can replace this with a try block once that feature is stable
+        let result = (|| -> Result<Option<String>> {
+            // Get a handle to the text on the clipboard
+            let hglobal = match GetClipboardData(CF_UNICODETEXT) {
+                Ok(handle) => HGLOBAL(handle.0),
+                Err(_) => return Ok(None), // Clipboard changed while we were opening it
+            };
+
+            // Acquire a pointer to the buffer
+            let ptr = GlobalLock(hglobal).cast::<u16>();
+            if ptr.is_null() {
+                return Err(Error::from_win32());
+            }
+
+            // Read the buffer as a PWSTR (null-terminated UTF-16) and convert it to a string
+            let str = String::from_utf16_lossy(PWSTR::from_raw(ptr).as_wide());
+
+            // Release the pointer (see note in set_text above)
+            GlobalUnlock(hglobal).or_else(|err| {
+                if err.code().is_err() {
+                    return Err(err);
+                }
+                Ok(())
+            })?;
+
+            Ok(Some(str))
         })();
 
         // Close the clipboard and return the result
