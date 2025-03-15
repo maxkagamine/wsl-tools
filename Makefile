@@ -14,4 +14,5 @@ $(ALL_BUILD): build-%: test-%
 	cargo build --release --target $*
 
 $(ALL_TEST): test-%:
+	cargo clippy --target $* -- -Wclippy::pedantic
 	cargo test --target $*
