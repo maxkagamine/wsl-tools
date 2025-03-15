@@ -1,9 +1,13 @@
 [package]
 name = "wsl-tools"
 version = "0.1.0"
+authors = ["Max Kagamine"]
+repository = "https://github.com/maxkagamine/wsl-tools"
+license = "Apache-2.0"
 edition = "2024"
 
 [dependencies]
+clap = { version = "4.5.32", features = ["cargo", "derive"] }
 
 [target.'cfg(windows)'.dependencies.windows]
 version = "0.60.0"

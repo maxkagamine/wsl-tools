@@ -125,3 +125,16 @@ pub fn get_text() -> Result<Option<String>> {
         result
     }
 }
+
+/// Clears the clipboard.
+///
+/// # Errors
+/// Error result contains the Win32 error if the operation failed.
+pub fn clear() -> Result<()> {
+    unsafe {
+        OpenClipboard(None)?;
+        let result = EmptyClipboard();
+        let _ = CloseClipboard();
+        result
+    }
+}
