@@ -15,3 +15,7 @@ features = [
   "Win32_System_DataExchange",
   "Win32_System_Memory"
 ]
+
+[dev-dependencies]
+assert_cmd = "2.0.16"
+base64 = "0.22.1"

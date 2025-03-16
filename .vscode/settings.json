@@ -1,6 +1,7 @@
 {
   "editor.formatOnSave": true,
   "rust-analyzer.cargo.target": "x86_64-pc-windows-gnu",
+  "rust-analyzer.runnables.extraArgs": ["--target", "x86_64-pc-windows-gnu"],
   "rust-analyzer.check.command": "clippy",
   "rust-analyzer.check.extraArgs": ["--", "-Wclippy::pedantic"],
   "rust-analyzer.check.targets": [
