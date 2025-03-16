@@ -15,4 +15,4 @@ $(ALL_BUILD): build-%: test-%
 
 $(ALL_TEST): test-%:
 	cargo clippy --target $* -- -Wclippy::pedantic
-	cargo test --target $*
+	cargo test --target $* -- --test-threads=1
