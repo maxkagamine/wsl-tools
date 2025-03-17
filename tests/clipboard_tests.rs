@@ -5,8 +5,8 @@
 
 use wsl_tools::clipboard;
 
-mod utils;
-use utils::*;
+mod clipboard_via_powershell;
+use clipboard_via_powershell::*;
 
 #[test]
 fn powershell_working() {

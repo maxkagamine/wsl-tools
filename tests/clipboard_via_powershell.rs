@@ -1,7 +1,7 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
-#![allow(clippy::doc_markdown)]
+#![allow(clippy::doc_markdown, unused)]
 
 use assert_cmd::prelude::*;
 use base64::engine::{Engine as _, general_purpose::STANDARD as base64};
@@ -82,6 +82,7 @@ pub fn clear_clipboard_via_powershell() {
 ///
 /// # Panics
 /// Command failed (check output in terminal).
+#[must_use]
 pub fn clipboard_contains_text() -> bool {
     let output = Command::new("powershell.exe")
         .arg("-NoProfile")

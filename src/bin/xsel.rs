@@ -80,19 +80,21 @@ struct Args {
     #[arg(short, long)]
     clear: bool,
     #[arg(short, long)]
-    primary: bool,
+    primary: bool, // Ignored
     #[arg(short, long)]
-    secondary: bool,
+    secondary: bool, // Ignored
     #[arg(short = 'b', long)]
-    clipboard: bool,
+    clipboard: bool, // Ignored
     #[arg(short, long)]
-    keep: bool,
+    keep: bool, // No-op
     #[arg(short = 'x', long)]
-    exchange: bool,
+    exchange: bool, // No-op
     #[arg(long)]
     trim: bool,
     #[arg(short, long)]
-    verbose: bool,
+    nodetach: bool, // Ignored
+    #[arg(short, long)]
+    verbose: bool, // Ignored
 
     // When running a Windows exe from WSL, if any pipes are redirected Linux-side, *all* of them
     // will be redirected Windows-side, which means xsel.exe won't be able to tell which are ttys.
