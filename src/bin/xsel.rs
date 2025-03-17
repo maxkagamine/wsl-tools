@@ -4,7 +4,7 @@
 // Based on xsel 1.2.1 by Conrad Parker
 
 use clap::Parser;
-use std::error::Error;
+use std::io::IsTerminal;
 
 #[derive(Parser)]
 #[command(
@@ -93,16 +93,28 @@ struct Args {
     trim: bool,
     #[arg(short, long)]
     verbose: bool,
+
+    // When running a Windows exe from WSL, if any pipes are redirected Linux-side, *all* of them
+    // will be redirected Windows-side, which means xsel.exe won't be able to tell which are ttys.
+    // To solve this, a Linux binary is run first which passes these hidden flags to the exe.
+    #[arg(long)]
+    stdin_is_tty: Option<bool>,
+    #[arg(long)]
+    stdout_is_tty: Option<bool>,
 }
 
 #[cfg(windows)]
-fn main() -> Result<(), Box<dyn Error>> {
-    use std::io::{IsTerminal, Read};
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    use std::io::Read;
 
     let args = Args::parse();
 
-    let stdin_is_tty = std::io::stdin().is_terminal();
-    let stdout_is_tty = std::io::stdout().is_terminal();
+    let stdin_is_tty = args
+        .stdin_is_tty
+        .unwrap_or_else(|| std::io::stdin().is_terminal());
+    let stdout_is_tty = args
+        .stdout_is_tty
+        .unwrap_or_else(|| std::io::stdout().is_terminal());
 
     // Determine input/output behavior based on options and pipes
     let do_input = args.append || args.input || (!args.output && !stdin_is_tty);
@@ -163,6 +175,48 @@ fn get_clipboard(args: &Args) -> Result<Option<String>, windows::core::Error> {
 }
 
 #[cfg(unix)]
-fn main() -> Result<(), Box<dyn Error>> {
-    unimplemented!();
+fn main() {
+    use std::{io::ErrorKind, os::unix::process::ExitStatusExt, process::Command};
+
+    let stdin_is_tty = std::io::stdin().is_terminal();
+    let stdout_is_tty = std::io::stdout().is_terminal();
+
+    let exe = if cfg!(debug_assertions) {
+        "target/x86_64-pc-windows-gnu/debug/xsel.exe"
+    } else {
+        "xsel.exe"
+    };
+
+    let mut cmd = Command::new(exe);
+    cmd.args(std::env::args_os().skip(1))
+        .arg("--stdin-is-tty")
+        .arg(stdin_is_tty.to_string())
+        .arg("--stdout-is-tty")
+        .arg(stdout_is_tty.to_string());
+
+    if cfg!(debug_assertions) {
+        eprintln!("debug: running {cmd:?}");
+    }
+
+    let status = cmd.status();
+
+    std::process::exit(match status {
+        Err(err) => {
+            if err.kind() == ErrorKind::NotFound {
+                eprintln!("xsel: could not find '{exe}'");
+                127
+            } else {
+                eprintln!("xsel: failed to start '{exe}': {err:?}");
+                126
+            }
+        }
+        Ok(status) => {
+            if let Some(code) = status.code() {
+                code
+            } else {
+                eprintln!("xsel: '{exe}' exited with {status}");
+                status.signal().unwrap_or_default().saturating_add(128)
+            }
+        }
+    });
 }
