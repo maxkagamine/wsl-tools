@@ -178,35 +178,35 @@ fn get_clipboard(args: &Args) -> Result<Option<String>, windows::core::Error> {
 fn main() {
     use std::{io::ErrorKind, os::unix::process::ExitStatusExt, process::Command};
 
+    const EXE: &str = "xsel.exe";
+
     let stdin_is_tty = std::io::stdin().is_terminal();
     let stdout_is_tty = std::io::stdout().is_terminal();
 
-    let exe = if cfg!(debug_assertions) {
-        "target/x86_64-pc-windows-gnu/debug/xsel.exe"
+    let mut cmd = if cfg!(debug_assertions) {
+        let mut cmd = Command::new("cargo");
+        cmd.arg("run")
+            .arg("--target=x86_64-pc-windows-gnu")
+            .arg("--bin=xsel")
+            .arg("--");
+        cmd
     } else {
-        "xsel.exe"
+        Command::new(EXE)
     };
 
-    let mut cmd = Command::new(exe);
     cmd.args(std::env::args_os().skip(1))
-        .arg("--stdin-is-tty")
-        .arg(stdin_is_tty.to_string())
-        .arg("--stdout-is-tty")
-        .arg(stdout_is_tty.to_string());
-
-    if cfg!(debug_assertions) {
-        eprintln!("debug: running {cmd:?}");
-    }
+        .arg(format!("--stdin-is-tty={stdin_is_tty}"))
+        .arg(format!("--stdout-is-tty={stdout_is_tty}"));
 
     let status = cmd.status();
 
     std::process::exit(match status {
         Err(err) => {
             if err.kind() == ErrorKind::NotFound {
-                eprintln!("xsel: could not find '{exe}'");
+                eprintln!("xsel: could not find '{EXE}'");
                 127
             } else {
-                eprintln!("xsel: failed to start '{exe}': {err:?}");
+                eprintln!("xsel: failed to start '{EXE}': {err:?}");
                 126
             }
         }
@@ -214,7 +214,7 @@ fn main() {
             if let Some(code) = status.code() {
                 code
             } else {
-                eprintln!("xsel: '{exe}' exited with {status}");
+                eprintln!("xsel: '{EXE}' exited with {status}");
                 status.signal().unwrap_or_default().saturating_add(128)
             }
         }
