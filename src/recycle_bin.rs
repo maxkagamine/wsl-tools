@@ -3,6 +3,7 @@
 
 #![cfg(windows)]
 
+use std::{io, os::windows::ffi::OsStrExt};
 use windows::{
     Win32::{
         Foundation::ERROR_FILE_NOT_FOUND,
@@ -14,12 +15,13 @@ use windows::{
             FOF_ALLOWUNDO, FileOperation, IFileOperation, IShellItem, SHCreateItemFromParsingName,
         },
     },
-    core::{Error as Win32Error, HRESULT, HSTRING, PCWSTR},
+    core::{Error as Win32Error, HRESULT, PCWSTR},
 };
 
 #[derive(Debug)]
 pub enum RecycleError {
     NotFound(String),
+    InvalidPath(String, io::Error),
     Win32(Win32Error),
 }
 
@@ -31,10 +33,12 @@ impl From<Win32Error> for RecycleError {
 
 /// Sends the given files/directories to the Recycle Bin.
 ///
-/// `paths` must be absolute.
-///
 /// # Errors
-/// Error result contains the Win32 error if the operation failed.
+/// If any paths do not exist or are otherwise invalid (empty string, or `GetFullPathNameW` threw an
+/// error), returns `NotFound` or `InvalidPath` with the given path and (if invalid) the error
+/// _without_ recycling any items.
+///
+/// Otherwise, if recyling fails, returns the Win32 error (see `windows::core::Error`).
 pub fn recycle<TIter, TItem>(paths: TIter) -> Result<(), RecycleError>
 where
     TIter: IntoIterator<Item = TItem>,
@@ -56,10 +60,19 @@ where
 
         // Mark files for deletion
         for path in paths {
-            // TODO: Handle relative paths
-            let hstring = HSTRING::from(path.as_ref());
+            // Resolve relative paths and convert to a null-terminated UTF-16 string.
+            // path::absolute() calls GetFullPathNameW internally on Windows.
+            let mut abs_path = std::path::absolute(path.as_ref())
+                .map_err(|err| RecycleError::InvalidPath(path.as_ref().to_string(), err))?
+                .as_os_str()
+                .encode_wide()
+                .chain(Some(0))
+                .collect::<Vec<_>>();
+
+            // Create an IShellItem and add it to the IFileOperation. This will cause recycle to
+            // fail early if the file does not exist.
             let result: Result<IShellItem, Win32Error> =
-                SHCreateItemFromParsingName(PCWSTR::from_raw(hstring.as_ptr()), None);
+                SHCreateItemFromParsingName(PCWSTR::from_raw(abs_path.as_mut_ptr()), None);
 
             match result {
                 Ok(item) => op.DeleteItem(&item, None)?,
