@@ -3,3 +3,5 @@
 
 pub mod clipboard;
 pub mod recycle_bin;
+
+mod recycle_progress_sink;

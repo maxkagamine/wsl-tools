@@ -3,6 +3,7 @@
 
 #![cfg(windows)]
 
+use crate::recycle_progress_sink::RecycleProgressSink;
 use std::{io, os::windows::ffi::OsStrExt};
 use windows::{
     Win32::{
@@ -13,7 +14,7 @@ use windows::{
         },
         UI::Shell::{
             FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT, FOFX_RECYCLEONDELETE, FileOperation,
-            IFileOperation, IShellItem, SHCreateItemFromParsingName,
+            IFileOperation, IFileOperationProgressSink, IShellItem, SHCreateItemFromParsingName,
         },
     },
     core::{Error as Win32Error, HRESULT, PCWSTR},
@@ -39,7 +40,7 @@ impl From<Win32Error> for RecycleError {
 /// error), returns `NotFound` or `InvalidPath` with the given path and (if invalid) the error
 /// _without_ recycling any items.
 ///
-/// Otherwise, if recyling fails, returns the Win32 error (see `windows::core::Error`).
+/// Otherwise, if recycling fails, returns the Win32 error (see `windows::core::Error`).
 pub fn recycle<TIter, TItem>(paths: TIter) -> Result<(), RecycleError>
 where
     TIter: IntoIterator<Item = TItem>,
@@ -68,21 +69,33 @@ where
         //
         // Even with FOF_SILENT | FOF_NOERRORUI, a dialog will still be shown if file(s) can't be
         // recycled, prompting whether to delete them permanently. FOF_NOCONFIRMATION prevents this
-        // prompt (by answering "yes"), but the problem is, if *ANY* file can't be recycled,
-        // IFileOperation will permanently delete *ALL* of them. There also doesn't appear to be a
-        // flag to turn off prompts and instead error if a file can't be recycled.
+        // prompt, but only by answering "yes"; there's no flag combination that will disable
+        // dialogs and not permanently delete. And it gets worse: with those flags, if _any_ file
+        // can't be recycled, IFileOperation will permanently delete ALL of them.
+        //
+        // The _only_ way to safely recycle files is to set up an IFileOperationProgressSink and use
+        // the PreDeleteItem hook to check if the file is about to be permanently deleted instead of
+        // recycled and abort the operation if so.
+        //
+        // Unfortunately, besides to not being able to "skip" (you can only abort the entire
+        // operation), this still doesn't work as one would expect: the `dwflags` which tells you if
+        // it can recycle or not isn't per-item; you get the same flags for all of them. Meaning if
+        // _any_ item can't be recycled, PreDeleteItem will falsely tell you that _none_ of them can
+        // be. Which means prompting the user for each file is out of the question, nor is it
+        // possible to avoid failing on the first error; in both cases you have to recycle
+        // one-by-one (still with the sink, though, to prevent it from permanently deleting what it
+        // can't recycle) -- no way around it.
         //
         // Windows really does not make it easy to recycle files programmatically!
-        //
-        // TODO: IFileOperationProgressSink supposedly has a PreDeleteItem hook that we might be
-        // able to use to tell it not to permanently delete. Might need to set FOF_WANTNUKEWARNING
-        // (unclear what that flag actually even does). Also may still need to recycle each file
-        // separately rather than in one IFileOperation batch.
         //
         // https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifileoperation-setoperationflags
         op.SetOperationFlags(
             FOF_SILENT | FOF_NOERRORUI | FOF_NOCONFIRMATION | FOFX_RECYCLEONDELETE,
         )?;
+
+        // Set up the progress sink as described above
+        let progress: IFileOperationProgressSink = RecycleProgressSink.into();
+        op.Advise(&progress)?;
 
         // Mark files for deletion
         for path in paths {
