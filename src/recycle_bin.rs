@@ -12,7 +12,8 @@ use windows::{
             CoInitializeEx,
         },
         UI::Shell::{
-            FOF_ALLOWUNDO, FileOperation, IFileOperation, IShellItem, SHCreateItemFromParsingName,
+            FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT, FOFX_RECYCLEONDELETE, FileOperation,
+            IFileOperation, IShellItem, SHCreateItemFromParsingName,
         },
     },
     core::{Error as Win32Error, HRESULT, PCWSTR},
@@ -54,9 +55,34 @@ where
         let op: IFileOperation = CoCreateInstance(&FileOperation, None, CLSCTX_ALL)?;
 
         // Set flags
-        // TODO: Check which flags to set & add options to set different flags
+        //
+        // FOF_ALLOWUNDO is equivalent to FOFX_ADDUNDORECORD | FOFX_RECYCLEONDELETE. That is,
+        // FOFX_RECYCLEONDELETE recycles without adding to Explorer's right click -> Undo stack,
+        // while FOFX_ADDUNDORECORD adds to the undo stack without any other side effects, which
+        // means that, without any other flags, a dialog will appear to permanently delete the file.
+        //
+        // For our purposes, since the recycling might not necessarily be initiated by the user,
+        // messing with Explorer's undo could be surprising (the user might for example try to undo
+        // a rename only to inadvertently restore a file to some unknown location, with no visual
+        // indication of what happened).
+        //
+        // Even with FOF_SILENT | FOF_NOERRORUI, a dialog will still be shown if file(s) can't be
+        // recycled, prompting whether to delete them permanently. FOF_NOCONFIRMATION prevents this
+        // prompt (by answering "yes"), but the problem is, if *ANY* file can't be recycled,
+        // IFileOperation will permanently delete *ALL* of them. There also doesn't appear to be a
+        // flag to turn off prompts and instead error if a file can't be recycled.
+        //
+        // Windows really does not make it easy to recycle files programmatically!
+        //
+        // TODO: IFileOperationProgressSink supposedly has a PreDeleteItem hook that we might be
+        // able to use to tell it not to permanently delete. Might need to set FOF_WANTNUKEWARNING
+        // (unclear what that flag actually even does). Also may still need to recycle each file
+        // separately rather than in one IFileOperation batch.
+        //
         // https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifileoperation-setoperationflags
-        op.SetOperationFlags(FOF_ALLOWUNDO)?;
+        op.SetOperationFlags(
+            FOF_SILENT | FOF_NOERRORUI | FOF_NOCONFIRMATION | FOFX_RECYCLEONDELETE,
+        )?;
 
         // Mark files for deletion
         for path in paths {
