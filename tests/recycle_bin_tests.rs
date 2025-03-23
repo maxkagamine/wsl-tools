@@ -7,10 +7,6 @@ use wsl_tools::recycle_bin;
 
 #[test]
 fn does_thing() {
-    recycle_bin::recycle([
-        r"C:\Users\max\Downloads\c1.txt",
-        r"C:\Users\max\Downloads\c2.txt",
-    ])
-    .unwrap();
-    panic!("ok");
+    recycle_bin::recycle(r"C:\Users\max\Downloads\c.txt").expect("recycle c.txt");
+    recycle_bin::recycle(r"S:\s.txt").expect_err("recycle s.txt");
 }
