@@ -10,8 +10,9 @@ fn main() {
     let time = Instant::now();
 
     {
-        recycle_bin::initialize_com();
-        recycle_bin::recycle_batch(files).unwrap();
+        if let Err(err) = recycle_bin::recycle(files) {
+            eprintln!("recycle: {err}");
+        }
     }
 
     let dur = time.elapsed();
