@@ -22,21 +22,19 @@ pub struct RecycleProgressSink;
 
 impl IFileOperationProgressSink_Impl for RecycleProgressSink_Impl {
     fn PreDeleteItem(&self, dwflags: u32, psiitem: Ref<'_, IShellItem>) -> Result<()> {
-        if cfg!(debug_assertions) {
-            let path = unsafe {
-                psiitem
-                    .unwrap()
-                    .GetDisplayName(SIGDN_DESKTOPABSOLUTEEDITING)
-                    .unwrap()
-                    .to_string()
-                    .unwrap()
-            };
-            let recycle_is_possible =
-                dwflags & TSF_DELETE_RECYCLE_IF_POSSIBLE == TSF_DELETE_RECYCLE_IF_POSSIBLE;
-            println!(
-                "PreDeleteItem: dwflags = {dwflags} ({recycle_is_possible}), psiitem = {path}"
-            );
-        }
+        //if cfg!(debug_assertions) {
+        let path = unsafe {
+            psiitem
+                .unwrap()
+                .GetDisplayName(SIGDN_DESKTOPABSOLUTEEDITING)
+                .unwrap()
+                .to_string()
+                .unwrap()
+        };
+        let recycle_is_possible =
+            dwflags & TSF_DELETE_RECYCLE_IF_POSSIBLE == TSF_DELETE_RECYCLE_IF_POSSIBLE;
+        println!("PreDeleteItem: dwflags = {dwflags} ({recycle_is_possible}), psiitem = {path}");
+        //}
 
         // Despite the name, this flag is set when recycling is possible (for ALL items; see the
         // lengthly comment in recycle_bin.rs). If not set, it's going to permanently delete
@@ -44,8 +42,27 @@ impl IFileOperationProgressSink_Impl for RecycleProgressSink_Impl {
         if dwflags & TSF_DELETE_RECYCLE_IF_POSSIBLE == TSF_DELETE_RECYCLE_IF_POSSIBLE {
             Ok(())
         } else {
+            println!("aborting from sink! dwflags = {dwflags}"); // TODO: Remove
             Err(Error::from_hresult(E_ABORT))
         }
+    }
+
+    fn PostDeleteItem(
+        &self,
+        dwflags: u32,
+        psiitem: Ref<'_, IShellItem>,
+        hrdelete: HRESULT,
+        psinewlycreated: Ref<'_, IShellItem>,
+    ) -> Result<()> {
+        if hrdelete.is_err() {
+            // Sometimes recycling can fail with 0x80070050 (ERROR_FILE_EXISTS). Yes, seriously. It
+            // fails to recycle because "the file exists." As if this API couldn't get any dumber.
+            //
+            // TODO: Get this error back to recycle() and retry once if failed, maybe with a sleep
+            println!("PostDeleteItem: {hrdelete:?}");
+        }
+
+        Ok(())
     }
 
     // region: No-ops
@@ -116,16 +133,6 @@ impl IFileOperationProgressSink_Impl for RecycleProgressSink_Impl {
         psidestinationfolder: Ref<'_, IShellItem>,
         psznewname: &PCWSTR,
         hrcopy: HRESULT,
-        psinewlycreated: Ref<'_, IShellItem>,
-    ) -> Result<()> {
-        Ok(())
-    }
-
-    fn PostDeleteItem(
-        &self,
-        dwflags: u32,
-        psiitem: Ref<'_, IShellItem>,
-        hrdelete: HRESULT,
         psinewlycreated: Ref<'_, IShellItem>,
     ) -> Result<()> {
         Ok(())
