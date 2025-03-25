@@ -44,9 +44,9 @@ impl Display for RecycleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NotFound(path) => {
-                write!(f, "Cannot recycle '{path}': No such file or directory.")
+                write!(f, "Cannot recycle \"{path}\": No such file or directory.")
             }
-            Self::InvalidPath(path, err) => write!(f, "Cannot recycle '{path}': {err}"),
+            Self::InvalidPath(path, err) => write!(f, "Cannot recycle \"{path}\": {err}"),
             Self::Win32(err) => Display::fmt(err, f),
             Self::Canceled => write!(f, "The operation was canceled."),
         }
@@ -212,7 +212,7 @@ where
             // path::absolute() calls GetFullPathNameW internally on Windows.
             let rel_path = path.as_ref();
             let mut abs_path = std::path::absolute(rel_path)
-                .map_err(|err| RecycleError::InvalidPath(rel_path.to_string(), err.into()))?
+                .map_err(|err| RecycleError::InvalidPath(rel_path.to_owned(), err.into()))?
                 .as_os_str()
                 .encode_wide()
                 .chain(Some(0))
@@ -221,12 +221,9 @@ where
             // Create an IShellItem. This will error if the file does not exist.
             let item: IShellItem =
                 SHCreateItemFromParsingName(PCWSTR::from_raw(abs_path.as_mut_ptr()), None)
-                    .map_err(|err| {
-                        if err.code() == FILE_NOT_FOUND {
-                            RecycleError::NotFound(rel_path.to_string())
-                        } else {
-                            RecycleError::InvalidPath(rel_path.to_string(), err.into())
-                        }
+                    .map_err(|err| match err.code() {
+                        FILE_NOT_FOUND => RecycleError::NotFound(rel_path.to_owned()),
+                        _ => RecycleError::InvalidPath(rel_path.to_owned(), err.into()),
                     })?;
 
             // Mark for deletion
@@ -234,12 +231,9 @@ where
         }
 
         // Execute
-        op.PerformOperations().map_err(|err| {
-            let hresult = err.code();
-            if hresult == CANCELLED || hresult == SHELL_CANCELLED {
-                return RecycleError::Canceled;
-            }
-            RecycleError::Win32(err)
+        op.PerformOperations().map_err(|err| match err.code() {
+            CANCELLED | SHELL_CANCELLED => RecycleError::Canceled,
+            _ => RecycleError::Win32(err),
         })?;
 
         // It's important to check GetAnyOperationsAborted, since PerformOperations may succeed even
