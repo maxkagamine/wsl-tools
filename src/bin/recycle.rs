@@ -28,6 +28,8 @@ https://github.com/maxkagamine/wsl-tools"),
     max_term_width = 80,
 )]
 struct Args {
+    // IMPORTANT! Any new args added here MUST be replicated in the Linux main() below. (Clap
+    // doesn't give us a way to stringify args.)
     #[arg(required(true), help = if cfg!(unix) {
         "Files/directories to recycle, relative to the current directory. Linux paths are \
         automatically converted to Windows paths."
@@ -53,5 +55,16 @@ fn main() {
 
 #[cfg(unix)]
 fn main() {
-    todo!();
+    use wsl_tools::{exe_command, exe_exec};
+
+    let args = Args::parse();
+
+    let mut cmd = exe_command!();
+
+    if !args.paths.is_empty() {
+        // TODO: Convert WSL paths to Windows paths
+        cmd.arg("--").args(args.paths);
+    }
+
+    exe_exec!(cmd);
 }

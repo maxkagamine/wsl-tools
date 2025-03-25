@@ -178,47 +178,16 @@ fn get_clipboard(args: &Args) -> Result<Option<String>, windows::core::Error> {
 
 #[cfg(unix)]
 fn main() {
-    use std::{io::ErrorKind, os::unix::process::ExitStatusExt, process::Command};
-
-    const EXE: &str = "xsel.exe";
+    use wsl_tools::{exe_command, exe_exec};
 
     let stdin_is_tty = std::io::stdin().is_terminal();
     let stdout_is_tty = std::io::stdout().is_terminal();
 
-    let mut cmd = if cfg!(debug_assertions) {
-        let mut cmd = Command::new("cargo");
-        cmd.arg("run")
-            .arg("--target=x86_64-pc-windows-gnu")
-            .arg("--bin=xsel")
-            .arg("--");
-        cmd
-    } else {
-        Command::new(EXE)
-    };
+    let mut cmd = exe_command!();
 
     cmd.args(std::env::args_os().skip(1))
         .arg(format!("--stdin-is-tty={stdin_is_tty}"))
         .arg(format!("--stdout-is-tty={stdout_is_tty}"));
 
-    let status = cmd.status();
-
-    std::process::exit(match status {
-        Err(err) => {
-            if err.kind() == ErrorKind::NotFound {
-                eprintln!("xsel: could not find '{EXE}'");
-                127
-            } else {
-                eprintln!("xsel: failed to start '{EXE}': {err:?}");
-                126
-            }
-        }
-        Ok(status) => {
-            if let Some(code) = status.code() {
-                code
-            } else {
-                eprintln!("xsel: '{EXE}' exited with {status}");
-                status.signal().unwrap_or_default().saturating_add(128)
-            }
-        }
-    });
+    exe_exec!(cmd);
 }

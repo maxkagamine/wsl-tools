@@ -2,4 +2,5 @@
 // Licensed under the Apache License, Version 2.0
 
 pub mod clipboard;
+pub mod macros;
 pub mod recycle_bin;
