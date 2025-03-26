@@ -1,6 +1,8 @@
 // Copyright (c) Max Kagamine
 // Licensed under the Apache License, Version 2.0
 
+use std::process::Command;
+
 use winresource::WindowsResource;
 
 fn main() {
@@ -31,7 +33,18 @@ fn main() {
 </assembly>
 "#);
 
-        // The winresource crate automatically adds metadata from Cargo.toml
+        // Add commit hash to version
+        let version = std::env::var("CARGO_PKG_VERSION").unwrap();
+        let git_hash = {
+            let output = Command::new("git")
+                .arg("rev-parse")
+                .arg("HEAD")
+                .output()
+                .unwrap();
+            String::from_utf8(output.stdout).unwrap().trim().to_string()
+        };
+        res.set("ProductVersion", format!("{version}+{git_hash}").as_str());
+
         res.compile().unwrap();
     }
     println!("cargo:rerun-if-changed=build.rs");
