@@ -55,15 +55,27 @@ fn main() {
 
 #[cfg(unix)]
 fn main() {
-    use wsl_tools::{exe_command, exe_exec};
+    use wsl_tools::{exe_command, exe_exec, wslpath};
 
     let args = Args::parse();
 
     let mut cmd = exe_command!();
 
     if !args.paths.is_empty() {
-        // TODO: Convert WSL paths to Windows paths
-        cmd.arg("--").args(args.paths);
+        cmd.arg("--");
+
+        // Convert WSL paths to Windows paths
+        for path in args.paths {
+            match wslpath::to_windows(&path) {
+                Ok(x) => {
+                    cmd.arg(x);
+                }
+                Err(err) => {
+                    eprintln!("recycle: failed to execute wslpath on \"{path}\": {err}");
+                    std::process::exit(1);
+                }
+            }
+        }
     }
 
     exe_exec!(cmd);
