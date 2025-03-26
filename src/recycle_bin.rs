@@ -3,6 +3,7 @@
 
 #![cfg(windows)]
 
+use crate::recycle_progress_sink::RecycleProgressSink;
 use std::{error::Error, fmt::Display, os::windows::ffi::OsStrExt};
 use windows::{
     Win32::{
@@ -12,8 +13,8 @@ use windows::{
             CoInitializeEx,
         },
         UI::Shell::{
-            FOFX_ADDUNDORECORD, FOFX_RECYCLEONDELETE, FileOperation, IFileOperation, IShellItem,
-            SHCreateItemFromParsingName,
+            FOFX_ADDUNDORECORD, FOFX_RECYCLEONDELETE, FileOperation, IFileOperation,
+            IFileOperationProgressSink, IShellItem, SHCreateItemFromParsingName,
         },
     },
     core::{Error as Win32Error, HRESULT, PCWSTR},
@@ -197,6 +198,32 @@ where
     TIter: IntoIterator<Item = TItem>,
     TItem: AsRef<str>,
 {
+    recycle_internal(paths, None::<Box<dyn FnMut(String, Option<Win32Error>)>>)
+}
+
+/// See `recycle`.
+#[allow(clippy::missing_errors_doc)]
+pub fn recycle_with_callback<'a, TIter, TItem, TCallback>(
+    paths: TIter,
+    callback: TCallback,
+) -> Result<(), RecycleError>
+where
+    TIter: IntoIterator<Item = TItem>,
+    TItem: AsRef<str>,
+    TCallback: FnMut(String, Option<Win32Error>) + 'a,
+{
+    recycle_internal(paths, Some(callback))
+}
+
+fn recycle_internal<'a, TIter, TItem, TCallback>(
+    paths: TIter,
+    callback: Option<TCallback>,
+) -> Result<(), RecycleError>
+where
+    TIter: IntoIterator<Item = TItem>,
+    TItem: AsRef<str>,
+    TCallback: FnMut(String, Option<Win32Error>) + 'a,
+{
     unsafe {
         // Initialize COM. This is normally done in main(), but it's safe to call multiple times
         // with the same threading model. IFileOperation requires an STA thread.
@@ -228,6 +255,12 @@ where
 
             // Mark for deletion
             op.DeleteItem(&item, None)?;
+        }
+
+        // Set up a sink if a callback was provided
+        if let Some(cb) = callback {
+            let sink: IFileOperationProgressSink = RecycleProgressSink::new(cb).into();
+            op.Advise(&sink)?;
         }
 
         // Execute

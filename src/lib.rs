@@ -5,3 +5,5 @@ pub mod clipboard;
 pub mod macros;
 pub mod recycle_bin;
 pub mod wslpath;
+
+mod recycle_progress_sink;

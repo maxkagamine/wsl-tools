@@ -128,3 +128,26 @@ fn errors_if_invalid_path() {
         _ => panic!("was expecting InvalidPath(_, windows::core::Error) for foo? but got {err:?}"),
     }
 }
+
+#[test]
+fn fires_callback() -> Result<(), Box<dyn Error>> {
+    // Create test file
+    let temp_dir = env::temp_dir();
+    let file = temp_dir.join("fires_callback.test");
+    drop(File::create(&file)?);
+
+    let mut callback_fired = false;
+
+    recycle_bin::recycle_with_callback([file.to_str().unwrap()], |item, error| {
+        assert!(!callback_fired);
+        assert!(error.is_none());
+        assert_eq!(file.to_str().unwrap(), item);
+
+        callback_fired = true;
+    })?;
+
+    assert!(callback_fired);
+    assert!(!fs::exists(&file)?);
+
+    Ok(())
+}

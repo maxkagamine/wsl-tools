@@ -523,4 +523,5 @@ dependencies = [
  "clap",
  "embed-manifest",
  "windows",
+ "windows-core",
 ]
