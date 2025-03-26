@@ -24,21 +24,81 @@ AppVerName=wsl-tools {#Version}
 AppVersion={#Version}
 ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64compatible
+ChangesEnvironment=yes
 DefaultDirName={autopf}\wsl-tools
-DisableProgramGroupPage=yes
 LicenseFile=LICENSE.txt
+MinVersion=6.2
 OutputBaseFilename=wsl-tools-installer
 OutputDir=dist
-PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
 SolidCompression=yes
+UninstallFilesDir={app}\uninst
 VersionInfoProductTextVersion={#ProductVersion}
 VersionInfoVersion={#FileVersion}
 WizardStyle=classic
 
 [Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
-Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
+Name: "en"; MessagesFile: "compiler:Default.isl"
+Name: "ja"; MessagesFile: "compiler:Languages\Japanese.isl"
+
+[CustomMessages]
+en.AddToPath=Add to PATH
+ja.AddToPath=PATHに追加する
 
 [Files]
 Source: "dist\wsl-tools\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Tasks]
+Name: "AddToPath"; Description: "{cm:AddToPath}"
+
+[Code]
+const EnvironmentKey = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
+
+procedure AddToPath(PathToAdd: string);
+var
+  PathArray: string;
+begin
+  { Get current PATH }
+  if not RegQueryStringValue(HKEY_LOCAL_MACHINE, EnvironmentKey, 'Path', PathArray) then
+    PathArray := '';
+
+  { Bail if PathToAdd is already present }
+  if Pos(';' + Uppercase(PathToAdd) + ';', ';' + Uppercase(PathArray) + ';') > 0 then
+    exit;
+
+  { Update PATH }
+  PathArray := PathArray + ';' + PathToAdd
+  if not RegWriteStringValue(HKEY_LOCAL_MACHINE, EnvironmentKey, 'Path', PathArray) then
+    RaiseException('Could not write to HKEY_LOCAL_MACHINE\' + EnvironmentKey);
+end;
+
+procedure RemoveFromPath(PathToRemove: string);
+var
+  PathArray: string;
+  P: integer;
+begin
+  { Get current PATH }
+  if not RegQueryStringValue(HKEY_LOCAL_MACHINE, EnvironmentKey, 'Path', PathArray) then
+    exit;
+
+  { Bail if PathToRemove is not present }
+  P := Pos(';' + Uppercase(PathToRemove) + ';', ';' + Uppercase(PathArray) + ';');
+  if P = 0 then
+    exit;
+
+  { Update PATH }
+  Delete(PathArray, P - 1, Length(PathToRemove) + 1)
+  if not RegWriteStringValue(HKEY_LOCAL_MACHINE, EnvironmentKey, 'Path', PathArray) then
+    RaiseException('Could not write to HKEY_LOCAL_MACHINE\' + EnvironmentKey);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if (CurStep = ssPostInstall) and WizardIsTaskSelected('AddToPath') then
+    AddToPath(ExpandConstant('{app}'));
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usPostUninstall then
+    RemoveFromPath(ExpandConstant('{app}'));
+end;
