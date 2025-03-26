@@ -6,6 +6,9 @@ repository = "https://github.com/maxkagamine/wsl-tools"
 license = "Apache-2.0"
 edition = "2024"
 
+[package.metadata.winresource]
+LegalCopyright = "Copyright © Max Kagamine"
+
 [dependencies]
 clap = { version = "4.5.32", features = ["cargo", "derive", "wrap_help"] }
 windows-core = { version = "0.61.0" }
@@ -24,4 +27,4 @@ assert_cmd = "2.0.16"
 base64 = "0.22.1"
 
 [build-dependencies]
-embed-manifest = "1.4.0"
+winresource = "0.1.20"
