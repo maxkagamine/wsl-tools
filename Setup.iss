@@ -3,7 +3,7 @@
 #pragma verboselevel 9
 
 ; Extract version from one of the exe's
-#define Exe "target\x86_64-pc-windows-gnu\release\recycle.exe"
+#define Exe "dist\wsl-tools\recycle.exe"
 #ifnexist Exe
   #pragma error Exe + " does not exist"
 #endif
@@ -41,8 +41,4 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 
 [Files]
-Source: "target\x86_64-pc-windows-gnu\release\recycle.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "target\x86_64-pc-windows-gnu\release\xsel.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "target\x86_64-unknown-linux-gnu\release\recycle"; DestDir: "{app}"; Flags: ignoreversion
-Source: "target\x86_64-unknown-linux-gnu\release\xsel"; DestDir: "{app}"; Flags: ignoreversion
-Source: "LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\wsl-tools\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
