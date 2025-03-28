@@ -253,13 +253,18 @@ where
                         _ => RecycleError::InvalidPath(rel_path.to_owned(), err.into()),
                     })?;
 
-            // Mark for deletion
+            // Mark for deletion. Based on the example code for copying[0][1], it seems to be safe
+            // to drop the shell item (which calls Release) once it's been added to the operation.
+            //
+            // [0]: https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifileoperation-copyitem#examples
+            // [1]: https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/Win7Samples/winui/shell/appplatform/FileOperationProgressSink/ProgressSinkSampleApp.cpp#L435
             op.DeleteItem(&item, None)?;
         }
 
-        // Set up a sink if a callback was provided
+        // Set up the sink if a callback was provided
+        let sink: IFileOperationProgressSink;
         if let Some(cb) = callback {
-            let sink: IFileOperationProgressSink = RecycleProgressSink::new(cb).into();
+            sink = RecycleProgressSink::new(cb).into();
             op.Advise(&sink)?;
         }
 
