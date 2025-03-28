@@ -46,19 +46,19 @@ struct Args {
 
 #[cfg(windows)]
 fn main() {
-    use wsl_tools::recycle_bin;
+    use wsl_tools::recycle_bin::{self, RECYCLE_NORMAL};
 
     let args = Args::parse();
 
     let result = if args.verbose {
-        recycle_bin::recycle_with_callback(&args.paths, |item, err| match err {
+        recycle_bin::recycle_with_callback(&args.paths, RECYCLE_NORMAL, |item, err| match err {
             // There's no way to know for sure if the item was actually recycled or deleted
             // permanently (`dwflags` can lie), so our verbage here should reflect that.
             None => println!("recycle: removed \"{item}\""),
             Some(e) => eprintln!("recycle: failed to recycle \"{item}\": {e}"),
         })
     } else {
-        recycle_bin::recycle(&args.paths)
+        recycle_bin::recycle(&args.paths, RECYCLE_NORMAL)
     };
 
     if let Err(err) = result {

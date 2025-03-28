@@ -13,12 +13,25 @@ use windows::{
             CoInitializeEx,
         },
         UI::Shell::{
-            FOFX_ADDUNDORECORD, FOFX_RECYCLEONDELETE, FileOperation, IFileOperation,
-            IFileOperationProgressSink, IShellItem, SHCreateItemFromParsingName,
+            FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT, FOFX_ADDUNDORECORD,
+            FOFX_RECYCLEONDELETE, FileOperation, IFileOperation, IFileOperationProgressSink,
+            IShellItem, SHCreateItemFromParsingName,
         },
     },
     core::{Error as Win32Error, HRESULT, PCWSTR},
 };
+
+pub type RecycleOptions = u8;
+
+/// Show progress dialog etc. and add to undo stack, the same as if deleting from Explorer.
+pub const RECYCLE_NORMAL: RecycleOptions = 0x0;
+
+/// Hide all dialogs and let the shell permanently delete anything it can't recycle. This may result
+/// in files that could have been recycled being nuked instead; see `recycle()`'s remarks.
+pub const RECYCLE_DANGEROUSLY_IN_BACKGROUND: RecycleOptions = 0x1;
+
+/// Skip files/directories that don't exist instead of returning `RecycleError::NotFound`.
+pub const RECYCLE_IGNORE_NOT_FOUND: RecycleOptions = 0x2;
 
 const FILE_NOT_FOUND: HRESULT = HRESULT::from_win32(ERROR_FILE_NOT_FOUND.0);
 const CANCELLED: HRESULT = HRESULT::from_win32(ERROR_CANCELLED.0);
@@ -57,31 +70,30 @@ impl Display for RecycleError {
 impl Error for RecycleError {}
 
 /// Sends the given files/directories to the Recycle Bin. Paths may be relative to the current
-/// directory.
+/// directory. Use the `RecycleOptions` flags to control the function's behavior.
 ///
-/// **Important:** This should only be used to recycle files in response to a user action, never
-/// automatically behind the scenes. The reason for this is that it is not possible on Windows to
-/// recycle files with a guarantee that no dialogs will be shown _and_ that no files will be
-/// permanently deleted. Even when using `IFileOperationProgressSink` to attempt to abort if a file
-/// is about to be permanently deleted, if a file is too big for the recycle bin, it will be
-/// silently permanently deleted anyway with no indication to the code of what happened.
-/// `IFileOperation` is _full_ of gotchas like this. Windows simply does not want code using the
-/// recycle bin in the background.
+/// The default behavior (`RECYCLE_NORMAL`) is to let the shell display the normal progress and
+/// confirmation dialogs and add to Explorer's undo history, the same as if the user had deleted the
+/// files in Explorer. **This should only be done in response to a user action, not automatically
+/// behind the scenes.**
 ///
-/// Therefore, this function does not attempt to silently recycle and instead lets the shell display
-/// the normal progress and confirmation dialogs, same as if the user had pressed delete on the
-/// files in Explorer. The undo history in Explorer is also updated, again the same as if the files
-/// were deleted from Explorer, which is another reason why this shouldn't be called from a
-/// background task: the user might try to undo a recent rename only to inadvertantly restore a file
-/// they don't know about to some unknown location.
+/// To recycle in the background, use `RECYCLE_DANGEROUSLY_IN_BACKGROUND`. As the name implies, this
+/// is dangerous: if _any_ files cannot be recycled, _all_ of them will be permanently deleted. Due
+/// to Windows API limitations, it is not possible to fully prevent this while preventing dialogs
+/// from appearing: Even when using `IFileOperationProgressSink` to attempt to abort if a file is
+/// about to be permanently deleted, if a file is too big for the recycle bin, it will be silently
+/// permanently deleted anyway with no indication to the code of what happened. `IFileOperation` is
+/// _full_ of gotchas like this. _See the Remarks below for details._
 ///
-/// See the Remarks below for details.
+/// By default, if any files/directories do not exist, `RecycleError::NotFound` is returned without
+/// recycling anything. Set the `RECYCLE_IGNORE_NOT_FOUND` flag to skip them instead.
 ///
 /// # Errors
 ///
-/// If any paths do not exist or are otherwise invalid (i.e. empty string or either
-/// `GetFullPathNameW` or `SHCreateItemFromParsingName` threw an error), returns `NotFound` or
-/// `InvalidPath` with the original path and (if invalid) the error without recycling.
+/// If any paths do not exist (and `RECYCLE_IGNORE_NOT_FOUND` is not set) or are otherwise invalid
+/// (i.e. empty string or either `GetFullPathNameW` or `SHCreateItemFromParsingName` threw an
+/// error), returns `NotFound` or `InvalidPath` with the original path and (if invalid) the error
+/// without recycling.
 ///
 /// If the operation was canceled by the user, or completed but not all files were recycled (e.g.
 /// user responded "Skip" or "No" to a dialog prompt), returns `Canceled`.
@@ -159,14 +171,14 @@ impl Error for RecycleError {}
 /// > its real purpose is to override FOF_NOCONFIRMATION and show a dialog if the file is too big to
 /// > recycle, asking whether to permanently delete it or not. Without that dialog,
 /// > FOF_NOCONFIRMATION answers "yes", and since the sink's `dwflags` is, as we've seen, absolutely
-/// > broken, we don't have any way whatsoever to detect this situation and abort. What's funny is
-/// > FOF_WANTNUKEWARNING does not do anything if the file is going to be nuked because there's no
-/// > recycle bin for it, only if there _is_ a recycle bin and it's too big, so it's not even good
-/// > at its job.
+/// > broken, we don't have any way whatsoever to detect this situation and abort. (It's worth
+/// > noting that FOF_WANTNUKEWARNING does not do anything if the file is going to be nuked because
+/// > there's no recycle bin for it, only if there _is_ a recycle bin and it's too big, so it's not
+/// > very effective anyway.)
 /// >
-/// > Frankly, the whole IFileOperation API is awful (and dangerous). Not only is it cumbersome to
-/// > use and poorly documented, but if you use it the way it seems you're supposed to, you'll very
-/// > easily either accidentally permanently delete files, or completely miss errors, because
+/// > Frankly, the whole IFileOperation API is problematic. Not only is it cumbersome to use and
+/// > poorly documented, but if you use it the way it seems you're supposed to, you'll very easily
+/// > either accidentally permanently delete files, or completely miss errors, because
 /// > PerformOperations can succeed even if it failed: you have to check GetAnyOperationsAborted and
 /// > hook into PostDeleteItem to see the hresult for any failed operations. (Sometimes recycling
 /// > can fail with 0x80070050 ERROR_FILE_EXISTS. Like of course it exists, that's the problem!)
@@ -175,36 +187,40 @@ impl Error for RecycleError {}
 /// >
 /// > There is supposedly an undocumented IRecycleBinManager API which _might_ be capable of both
 /// > telling if a file can be recycled or not and recycling files without permanently deleting
-/// > them. More investigation is necessary...
+/// > them. More investigation is necessary.
 /// > <https://stackoverflow.com/questions/23720519/how-to-safely-delete-folder-into-recycle-bin>
 /// >
 /// > Windows really does not make it easy to recycle files programmatically!
 /// >
-/// > ---
-/// >
-/// > But wait, there's more: Windows has a little-known feature dating back to Windows 2000 where
-/// > if you have an HTML file "foo.html" and a directory "foo_files" ("files" is localized),
+/// > ...But wait, there's more: Windows has a little-known feature dating back to Windows 2000
+/// > where if you have an HTML file "foo.html" and a directory "foo_files" ("files" is localized),
 /// > deleting one will delete the other (attempting to rename one of them displays a unique dialog,
-/// > too). This might have been useful in Explorer, but it would be unexpected when recycling
-/// > programmatically; FOF_NO_CONNECTED_ELEMENTS disables it.
+/// > too). This might have been useful in Explorer, but it could be unexpected when recycling
+/// > programmatically. FOF_NO_CONNECTED_ELEMENTS prevents that, or it can be disabled system-wide:
+/// > <https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shfileoperationw#connecting-files>
 /// >
 /// > Also, I've not yet checked what IFileOperation does when a file requires admin to delete and
 /// > dialogs are turned off, which is another possible failure mode besides being too big to
 /// > recycle and not having a recycle bin to recycle to. With dialogs _on_, you get a prompt to
 /// > continue as admin, skip, or cancel, unless you add FOFX_REQUIREELEVATION, in which case the
 /// > program will immediately try to elevate itself with a UAC prompt.
-pub fn recycle<TIter, TItem>(paths: TIter) -> Result<(), RecycleError>
+pub fn recycle<TIter, TItem>(paths: TIter, options: RecycleOptions) -> Result<(), RecycleError>
 where
     TIter: IntoIterator<Item = TItem>,
     TItem: AsRef<str>,
 {
-    recycle_internal(paths, None::<Box<dyn FnMut(String, Option<Win32Error>)>>)
+    recycle_internal(
+        paths,
+        options,
+        None::<Box<dyn FnMut(String, Option<Win32Error>)>>,
+    )
 }
 
 /// See `recycle`.
 #[allow(clippy::missing_errors_doc)]
 pub fn recycle_with_callback<'a, TIter, TItem, TCallback>(
     paths: TIter,
+    options: RecycleOptions,
     callback: TCallback,
 ) -> Result<(), RecycleError>
 where
@@ -212,11 +228,12 @@ where
     TItem: AsRef<str>,
     TCallback: FnMut(String, Option<Win32Error>) + 'a,
 {
-    recycle_internal(paths, Some(callback))
+    recycle_internal(paths, options, Some(callback))
 }
 
 fn recycle_internal<'a, TIter, TItem, TCallback>(
     paths: TIter,
+    options: RecycleOptions,
     callback: Option<TCallback>,
 ) -> Result<(), RecycleError>
 where
@@ -232,7 +249,13 @@ where
         // Instantiate an IFileOperation and set flags for recycling.
         // https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ifileoperation
         let op: IFileOperation = CoCreateInstance(&FileOperation, None, CLSCTX_ALL)?;
-        op.SetOperationFlags(FOFX_ADDUNDORECORD | FOFX_RECYCLEONDELETE)?;
+        if options & RECYCLE_DANGEROUSLY_IN_BACKGROUND == RECYCLE_DANGEROUSLY_IN_BACKGROUND {
+            op.SetOperationFlags(
+                FOF_SILENT | FOF_NOERRORUI | FOF_NOCONFIRMATION | FOFX_RECYCLEONDELETE,
+            )?;
+        } else {
+            op.SetOperationFlags(FOFX_ADDUNDORECORD | FOFX_RECYCLEONDELETE)?;
+        }
 
         for path in paths {
             // Resolve relative paths and convert to a null-terminated UTF-16 string.
@@ -247,11 +270,16 @@ where
 
             // Create an IShellItem. This will error if the file does not exist.
             let item: IShellItem =
-                SHCreateItemFromParsingName(PCWSTR::from_raw(abs_path.as_mut_ptr()), None)
-                    .map_err(|err| match err.code() {
-                        FILE_NOT_FOUND => RecycleError::NotFound(rel_path.to_owned()),
-                        _ => RecycleError::InvalidPath(rel_path.to_owned(), err.into()),
-                    })?;
+                match SHCreateItemFromParsingName(PCWSTR::from_raw(abs_path.as_mut_ptr()), None) {
+                    Ok(item) => Ok(item),
+                    Err(err) if err.code() == FILE_NOT_FOUND => {
+                        if options & RECYCLE_IGNORE_NOT_FOUND == RECYCLE_IGNORE_NOT_FOUND {
+                            continue;
+                        }
+                        Err(RecycleError::NotFound(rel_path.to_owned()))
+                    }
+                    Err(err) => Err(RecycleError::InvalidPath(rel_path.to_owned(), err.into())),
+                }?;
 
             // Mark for deletion. Based on the example code for copying[0][1], it seems to be safe
             // to drop the shell item (which calls Release) once it's been added to the operation.
