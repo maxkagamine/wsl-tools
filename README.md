@@ -97,22 +97,42 @@ Usage: recycle [OPTIONS] <PATHS>...
 
 Sends the given files/directories to the Recycle Bin.
 
-This will show a progress dialog and possibly prompts to delete permanently or
-continue as admin, error dialogs such as a file being in use, etc., the same as
-if the user had deleted the files from Explorer. Right click undo in Explorer is
-enabled as well for consistency. This is due to Windows API limitations: it is
-not possible to recycle files without any dialogs without also risking the shell
-permanently deleting files. Consequently, this command must not be used in
-scripts where the user is not expecting it.
+The default behavior (without --rm) is to let the shell display the normal
+progress and confirmation dialogs and add to Explorer's undo history, the same
+as if the user had deleted the files in Explorer. This is due to Windows API
+limitations: it is not possible to recycle files without any dialogs without
+also risking the shell permanently deleting files. Consequently, this command
+MUST NOT be used without --rm in scripts where the user is not expecting it.
 
 Arguments:
-  <PATHS>...  Files/directories to recycle, relative to the current directory.
-              Linux paths are automatically converted to Windows paths.
+  <PATHS>...
+          Files/directories to recycle, relative to the current directory. Linux
+          paths are automatically converted to Windows paths.
 
 Options:
-  -v, --verbose  Show recycle progress in the terminal
-  -h, --help     Print help
-  -V, --version  Print version
+  -f, --force
+          Ignore nonexistent files
+
+      --rm
+          Hide all dialogs and let the shell permanently delete anything it
+          can't recycle. Warnings:
+
+          • This may result in files that could have been recycled being nuked
+          instead; see comment in `recycle_bin.rs` for details.
+
+          • Directories will be deleted recursively.
+
+          • Files in the WSL filesystem that would require sudo will silently
+          fail to delete (same happens in Explorer).
+
+  -v, --verbose
+          Show recycle progress in the terminal
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```
 
 ## Legal stuff

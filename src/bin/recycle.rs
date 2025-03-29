@@ -10,12 +10,12 @@ use clap::Parser;
     about = "\
 Sends the given files/directories to the Recycle Bin.
 
-This will show a progress dialog and possibly prompts to delete permanently or continue as admin, \
-error dialogs such as a file being in use, etc., the same as if the user had deleted the files \
-from Explorer. Right click undo in Explorer is enabled as well for consistency. This is due to \
-Windows API limitations: it is not possible to recycle files without any dialogs without also \
-risking the shell permanently deleting files. Consequently, this command \x1b[3mmust not\x1b[m be \
-used in scripts where the user is not expecting it.",
+The default behavior (without --rm) is to let the shell display the normal progress and \
+confirmation dialogs and add to Explorer's undo history, the same as if the user had deleted the \
+files in Explorer. This is due to Windows API limitations: it is not possible to recycle files \
+without any dialogs without also risking the shell permanently deleting files. Consequently, this \
+command MUST NOT be used without --rm in scripts where the user is not expecting it.\
+",
     version = concat!(clap::crate_version!(), "
 Copyright (c) Max Kagamine
 Licensed under the Apache License, Version 2.0
@@ -39,6 +39,22 @@ struct Args {
     })]
     paths: Vec<String>,
 
+    /// Ignore nonexistent files.
+    #[arg(short, long)]
+    force: bool,
+
+    /// Hide all dialogs and let the shell permanently delete anything it can't recycle. Warnings:
+    ///
+    /// • This may result in files that could have been recycled being nuked instead; see comment in
+    ///   `recycle_bin.rs` for details.
+    ///
+    /// • Directories will be deleted recursively.
+    ///
+    /// • Files in the WSL filesystem that would require sudo will silently fail to delete (same
+    ///   happens in Explorer).
+    #[arg(long)]
+    rm: bool,
+
     /// Show recycle progress in the terminal.
     #[arg(short, long)]
     verbose: bool,
@@ -46,19 +62,31 @@ struct Args {
 
 #[cfg(windows)]
 fn main() {
-    use wsl_tools::recycle_bin::{self, RECYCLE_NORMAL};
+    use wsl_tools::recycle_bin::{
+        self, RECYCLE_DANGEROUSLY_IN_BACKGROUND, RECYCLE_IGNORE_NOT_FOUND, RecycleOptions,
+    };
 
     let args = Args::parse();
 
+    let mut options: RecycleOptions = 0;
+
+    if args.force {
+        options |= RECYCLE_IGNORE_NOT_FOUND;
+    }
+
+    if args.rm {
+        options |= RECYCLE_DANGEROUSLY_IN_BACKGROUND;
+    }
+
     let result = if args.verbose {
-        recycle_bin::recycle_with_callback(&args.paths, RECYCLE_NORMAL, |item, err| match err {
+        recycle_bin::recycle_with_callback(&args.paths, options, |item, err| match err {
             // There's no way to know for sure if the item was actually recycled or deleted
             // permanently (`dwflags` can lie), so our verbage here should reflect that.
             None => println!("recycle: removed \"{item}\""),
             Some(e) => eprintln!("recycle: failed to recycle \"{item}\": {e}"),
         })
     } else {
-        recycle_bin::recycle(&args.paths, RECYCLE_NORMAL)
+        recycle_bin::recycle(&args.paths, options)
     };
 
     if let Err(err) = result {
@@ -74,6 +102,14 @@ fn main() {
     let args = Args::parse();
 
     let mut cmd = exe_command!();
+
+    if args.force {
+        cmd.arg("--force");
+    }
+
+    if args.rm {
+        cmd.arg("--rm");
+    }
 
     if args.verbose {
         cmd.arg("--verbose");
