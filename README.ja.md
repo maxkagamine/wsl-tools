@@ -89,7 +89,7 @@ Xオプション
 
 ## recycle
 
-[ソースで注釈](src/recycle_bin.rs#L91)を参照してください。
+[ソースで注釈](src/recycle_bin.rs)を参照してください。
 
 Windowsのごみ箱が英語で「Recycle Bin」と呼ばれているため、この名前を付けました。
 
@@ -122,8 +122,8 @@ Windowsのごみ箱が英語で「Recycle Bin」と呼ばれているため、�
 
           • ディレクトリは再帰的に削除される。
 
-          • WSLファイルシステム上でsudoが必要のファイルは、警告メッセージを表示せずに
-            失敗する（Explorerでも同じことが起こる）
+          • WSLファイルシステム上でsudoが必要なファイルは、recycleを使って削除できない
+          　（Explorerには不可能だ）。
 
   -v, --verbose
           削除進捗をターミナルで表示する

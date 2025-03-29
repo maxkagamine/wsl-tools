@@ -50,8 +50,8 @@ struct Args {
     ///
     /// • Directories will be deleted recursively.
     ///
-    /// • Files in the WSL filesystem that would require sudo will silently fail to delete (same
-    ///   happens in Explorer).
+    /// • Files in the WSL filesystem that require sudo cannot be deleted with `recycle` (Explorer
+    ///   won't do it).
     #[arg(long)]
     rm: bool,
 
@@ -63,7 +63,8 @@ struct Args {
 #[cfg(windows)]
 fn main() {
     use wsl_tools::recycle_bin::{
-        self, RECYCLE_DANGEROUSLY_IN_BACKGROUND, RECYCLE_IGNORE_NOT_FOUND, RecycleOptions,
+        self, RECYCLE_DANGEROUSLY_IN_BACKGROUND, RECYCLE_IGNORE_NOT_FOUND, RecycleError,
+        RecycleOptions,
     };
 
     let args = Args::parse();
@@ -78,19 +79,27 @@ fn main() {
         options |= RECYCLE_DANGEROUSLY_IN_BACKGROUND;
     }
 
-    let result = if args.verbose {
-        recycle_bin::recycle_with_callback(&args.paths, options, |item, err| match err {
-            // There's no way to know for sure if the item was actually recycled or deleted
-            // permanently (`dwflags` can lie), so our verbage here should reflect that.
-            None => println!("recycle: removed \"{item}\""),
-            Some(e) => eprintln!("recycle: failed to recycle \"{item}\": {e}"),
-        })
-    } else {
-        recycle_bin::recycle(&args.paths, options)
-    };
+    let mut errored = false;
+    let result = recycle_bin::recycle_with_callback(&args.paths, options, |item, err| match err {
+        None => {
+            if args.verbose {
+                // There's no way to know for sure if the item was actually recycled or deleted
+                // permanently (`dwflags` can lie), so our verbage here should reflect that.
+                println!("recycle: Removed \"{item}\"");
+            }
+        }
+        Some(e) => {
+            errored = true;
+            eprintln!("recycle: Failed to recycle \"{item}\": {e}");
+        }
+    });
 
     if let Err(err) = result {
-        eprintln!("recycle: {err}");
+        // No need to print "The operation was canceled." if there were specific errors.
+        if !matches!(err, RecycleError::Canceled) || !errored {
+            eprintln!("recycle: {err}");
+        }
+
         std::process::exit(1);
     }
 }

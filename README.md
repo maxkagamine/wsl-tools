@@ -90,7 +90,7 @@ Miscellaneous options
 
 ## recycle
 
-See [remarks in source](src/recycle_bin.rs#L91).
+See [remarks in source](src/recycle_bin.rs).
 
 ```
 Usage: recycle [OPTIONS] <PATHS>...
@@ -122,8 +122,8 @@ Options:
 
           • Directories will be deleted recursively.
 
-          • Files in the WSL filesystem that would require sudo will silently
-          fail to delete (same happens in Explorer).
+          • Files in the WSL filesystem that require sudo cannot be deleted with
+          `recycle` (Explorer won't do it).
 
   -v, --verbose
           Show recycle progress in the terminal

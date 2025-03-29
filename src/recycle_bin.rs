@@ -3,8 +3,9 @@
 
 #![cfg(windows)]
 
+pub use crate::recycle_error::RecycleError;
 use crate::recycle_progress_sink::RecycleProgressSink;
-use std::{error::Error, fmt::Display, os::windows::ffi::OsStrExt};
+use std::os::windows::ffi::OsStrExt;
 use windows::{
     Win32::{
         Foundation::{ERROR_CANCELLED, ERROR_FILE_NOT_FOUND},
@@ -13,12 +14,12 @@ use windows::{
             CoInitializeEx,
         },
         UI::Shell::{
-            FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT, FOFX_ADDUNDORECORD,
-            FOFX_RECYCLEONDELETE, FileOperation, IFileOperation, IFileOperationProgressSink,
-            IShellItem, SHCreateItemFromParsingName,
+            COPYENGINE_E_USER_CANCELLED, FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT,
+            FOFX_ADDUNDORECORD, FOFX_RECYCLEONDELETE, FileOperation, IFileOperation,
+            IFileOperationProgressSink, IShellItem, SHCreateItemFromParsingName,
         },
     },
-    core::{Error as Win32Error, HRESULT, PCWSTR},
+    core::{HRESULT, PCWSTR},
 };
 
 pub type RecycleOptions = u8;
@@ -35,39 +36,6 @@ pub const RECYCLE_IGNORE_NOT_FOUND: RecycleOptions = 0x2;
 
 const FILE_NOT_FOUND: HRESULT = HRESULT::from_win32(ERROR_FILE_NOT_FOUND.0);
 const CANCELLED: HRESULT = HRESULT::from_win32(ERROR_CANCELLED.0);
-
-// FACILITY_SHELL with no error code, happens when answering "no" to prompts to permanently delete.
-#[allow(clippy::pedantic)]
-const SHELL_CANCELLED: HRESULT = HRESULT(0x80270000_u32 as i32);
-
-#[derive(Debug)]
-pub enum RecycleError {
-    NotFound(String),
-    InvalidPath(String, Box<dyn Error>),
-    Win32(Win32Error),
-    Canceled,
-}
-
-impl From<Win32Error> for RecycleError {
-    fn from(value: Win32Error) -> Self {
-        Self::Win32(value)
-    }
-}
-
-impl Display for RecycleError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::NotFound(path) => {
-                write!(f, "Cannot recycle \"{path}\": No such file or directory.")
-            }
-            Self::InvalidPath(path, err) => write!(f, "Cannot recycle \"{path}\": {err}"),
-            Self::Win32(err) => Display::fmt(err, f),
-            Self::Canceled => write!(f, "The operation was canceled."),
-        }
-    }
-}
-
-impl Error for RecycleError {}
 
 /// Sends the given files/directories to the Recycle Bin. Paths may be relative to the current
 /// directory. Use the `RecycleOptions` flags to control the function's behavior.
@@ -212,7 +180,7 @@ where
     recycle_internal(
         paths,
         options,
-        None::<Box<dyn FnMut(String, Option<Win32Error>)>>,
+        None::<Box<dyn FnMut(String, Option<RecycleError>)>>,
     )
 }
 
@@ -226,7 +194,7 @@ pub fn recycle_with_callback<'a, TIter, TItem, TCallback>(
 where
     TIter: IntoIterator<Item = TItem>,
     TItem: AsRef<str>,
-    TCallback: FnMut(String, Option<Win32Error>) + 'a,
+    TCallback: FnMut(String, Option<RecycleError>) + 'a,
 {
     recycle_internal(paths, options, Some(callback))
 }
@@ -239,7 +207,7 @@ fn recycle_internal<'a, TIter, TItem, TCallback>(
 where
     TIter: IntoIterator<Item = TItem>,
     TItem: AsRef<str>,
-    TCallback: FnMut(String, Option<Win32Error>) + 'a,
+    TCallback: FnMut(String, Option<RecycleError>) + 'a,
 {
     unsafe {
         // Initialize COM. This is normally done in main(), but it's safe to call multiple times
@@ -298,7 +266,7 @@ where
 
         // Execute
         op.PerformOperations().map_err(|err| match err.code() {
-            CANCELLED | SHELL_CANCELLED => RecycleError::Canceled,
+            CANCELLED | COPYENGINE_E_USER_CANCELLED => RecycleError::Canceled,
             _ => RecycleError::Win32(err),
         })?;
 

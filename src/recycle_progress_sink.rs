@@ -4,11 +4,13 @@
 #![cfg(windows)]
 #![allow(clippy::pedantic, unused_variables)]
 
-use std::cell::UnsafeCell;
+use crate::recycle_error::RecycleError;
+use std::{cell::UnsafeCell, fs};
 use windows::{
     Win32::UI::Shell::{
-        IFileOperationProgressSink, IFileOperationProgressSink_Impl, IShellItem,
-        SIGDN_DESKTOPABSOLUTEEDITING,
+        COPYENGINE_E_ACCESS_DENIED_SRC, COPYENGINE_E_SHARING_VIOLATION_SRC,
+        COPYENGINE_E_USER_CANCELLED, IFileOperationProgressSink, IFileOperationProgressSink_Impl,
+        IShellItem, SIGDN_DESKTOPABSOLUTEEDITING,
     },
     core::{Error, HRESULT, PCWSTR, Ref, Result, implement},
 };
@@ -27,13 +29,13 @@ fn get_shell_item_path(
 #[implement(IFileOperationProgressSink)]
 #[allow(clippy::type_complexity)]
 pub struct RecycleProgressSink<'a> {
-    callback: UnsafeCell<Box<dyn FnMut(String, Option<Error>) + 'a>>,
+    callback: UnsafeCell<Box<dyn FnMut(String, Option<RecycleError>) + 'a>>,
 }
 
 impl<'a> RecycleProgressSink<'a> {
     pub fn new<T>(callback: T) -> Self
     where
-        T: FnMut(String, Option<Error>) + 'a,
+        T: FnMut(String, Option<RecycleError>) + 'a,
     {
         RecycleProgressSink {
             callback: UnsafeCell::new(Box::new(callback)),
@@ -49,12 +51,31 @@ impl IFileOperationProgressSink_Impl for RecycleProgressSink_Impl<'_> {
         hrdelete: HRESULT,
         psinewlycreated: Ref<'_, IShellItem>,
     ) -> Result<()> {
-        let path = get_shell_item_path(&psiitem).unwrap_or_else(|err| format!("<Error: {err}>"));
+        let path = get_shell_item_path(&psiitem).unwrap_or_else(|err| {
+            // This should probably never happen, but better than panicking in case it does
+            format!("<Error: {err}>")
+        });
 
         let error = if hrdelete.is_ok() {
-            None
+            if fs::exists(&path).unwrap_or_default() {
+                // File still exists even after being deleted. This can happen when trying to
+                // recycle a file on the WSL filesystem owned by root (Windows won't allow it).
+                Some(RecycleError::Unknown)
+            } else {
+                None
+            }
+        } else if hrdelete == COPYENGINE_E_ACCESS_DENIED_SRC {
+            Some(RecycleError::AccessDenied)
+        } else if hrdelete == COPYENGINE_E_SHARING_VIOLATION_SRC {
+            if fs::metadata(&path).is_ok_and(|m| m.is_dir()) {
+                Some(RecycleError::FolderInUse)
+            } else {
+                Some(RecycleError::FileInUse)
+            }
+        } else if hrdelete == COPYENGINE_E_USER_CANCELLED {
+            Some(RecycleError::Canceled)
         } else {
-            Some(Error::from_hresult(hrdelete))
+            Some(Error::from_hresult(hrdelete).into())
         };
 
         unsafe {
