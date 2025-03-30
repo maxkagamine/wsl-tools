@@ -106,8 +106,10 @@ struct Args {
 }
 
 #[cfg(windows)]
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
+    use anyhow::Result;
     use std::io::Read;
+    use wsl_tools::clipboard;
 
     let args = Args::parse();
 
@@ -125,42 +127,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if args.keep || args.exchange {
         // No-op
-        return Ok(());
+        return;
     }
 
-    let old_sel = if do_output {
-        get_clipboard(&args)?.inspect(|x| print!("{x}"))
-    } else {
-        None
-    };
-
-    if args.clear {
-        wsl_tools::clipboard::clear()?;
-    } else if do_input {
-        let mut new_sel = if !args.append {
-            String::new()
-        } else if do_output {
-            old_sel.unwrap_or_default()
+    let result = (|| -> Result<()> {
+        let old_sel = if do_output {
+            get_clipboard(&args)?.inspect(|x| print!("{x}"))
         } else {
-            get_clipboard(&args)?.unwrap_or_default()
+            None
         };
 
-        std::io::stdin().read_to_string(&mut new_sel)?;
+        if args.clear {
+            clipboard::clear()?;
+        } else if do_input {
+            let mut new_sel = if !args.append {
+                String::new()
+            } else if do_output {
+                old_sel.unwrap_or_default()
+            } else {
+                get_clipboard(&args)?.unwrap_or_default()
+            };
 
-        let text = if args.trim {
-            new_sel.trim_end_matches(['\r', '\n'])
-        } else {
-            new_sel.as_ref()
-        };
+            std::io::stdin().read_to_string(&mut new_sel)?;
 
-        wsl_tools::clipboard::set_text(text)?;
+            let text = if args.trim {
+                new_sel.trim_end_matches(['\r', '\n'])
+            } else {
+                new_sel.as_ref()
+            };
+
+            clipboard::set_text(text)?;
+        }
+
+        Ok(())
+    })();
+
+    if let Err(err) = result {
+        eprintln!("xsel: {err:#}");
+        std::process::exit(1);
     }
-
-    Ok(())
 }
 
 #[cfg(windows)]
-fn get_clipboard(args: &Args) -> Result<Option<String>, windows::core::Error> {
+fn get_clipboard(args: &Args) -> anyhow::Result<Option<String>> {
     Ok(wsl_tools::clipboard::get_text()?.map(|text| {
         if args.keep_crlf {
             if args.trim {
