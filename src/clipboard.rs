@@ -4,6 +4,7 @@
 #![cfg(windows)]
 
 use anyhow::{Context, Error, Result};
+use std::time::Duration;
 use windows::{
     Win32::{
         Foundation::{HANDLE, HGLOBAL},
@@ -27,7 +28,7 @@ const CF_UNICODETEXT: u32 = 13;
 pub fn set_text(text: &str) -> Result<()> {
     unsafe {
         // Open the clipboard
-        OpenClipboard(None).context("OpenClipboard")?;
+        open_clipboard()?;
 
         // Can replace this with a try block once that feature is stable
         let result = (|| -> Result<()> {
@@ -79,7 +80,7 @@ pub fn get_text() -> Result<Option<String>> {
         }
 
         // Open the clipboard
-        OpenClipboard(None).context("OpenClipboard")?;
+        open_clipboard()?;
 
         // Can replace this with a try block once that feature is stable
         let result = (|| -> Result<Option<String>> {
@@ -113,10 +114,33 @@ pub fn get_text() -> Result<Option<String>> {
 /// Error result contains the Win32 error if the operation failed.
 pub fn clear() -> Result<()> {
     unsafe {
-        OpenClipboard(None).context("OpenClipboard")?;
+        open_clipboard()?;
         let result = EmptyClipboard().context("EmptyClipboard");
         let _ = CloseClipboard();
         result
+    }
+}
+
+/// Tries to open the clipboard.
+///
+/// `OpenClipboard` can fail with `ERROR_ACCESS_DENIED` if another program is using it at the same
+/// time (I ran into this with my [clips] bash function while trying to copy URLs into an array, so
+/// it's not [inconceivable] that this could happen; simply calling `get_text()` in a loop will
+/// trigger an access denied eventually as well). [TextCopy] solves this by retrying up to 10 times
+/// with a small delay; we'll do the same.
+///
+/// [clips]: https://github.com/maxkagamine/dotfiles/blob/1139d1117e0b89ec14305036c27b520d7f92e307/mods/bash/.bashrc#L106-L122
+/// [TextCopy]: https://github.com/CopyText/TextCopy/blob/6.2.1/src/TextCopy/WindowsClipboard.cs#L87
+/// [inconceivable]: https://youtu.be/D9MS2y2YU_o?t=126
+unsafe fn open_clipboard() -> Result<()> {
+    let mut i = 10;
+    loop {
+        let result = unsafe { OpenClipboard(None).context("OpenClipboard") };
+        if result.is_ok() || i == 1 {
+            return result;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+        i -= 1;
     }
 }
 
