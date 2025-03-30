@@ -3,7 +3,8 @@
 
 #![cfg(windows)]
 
-use anyhow::{Context, Error, Result};
+use crate::hglobal::{GlobalMemory, Lock};
+use anyhow::{Context, Result};
 use std::time::Duration;
 use windows::{
     Win32::{
@@ -13,10 +14,10 @@ use windows::{
                 CloseClipboard, EmptyClipboard, GetClipboardData, IsClipboardFormatAvailable,
                 OpenClipboard, SetClipboardData,
             },
-            Memory::{GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalUnlock},
+            Memory::{GMEM_MOVEABLE, GlobalAlloc},
         },
     },
-    core::{Error as Win32Error, PWSTR},
+    core::PWSTR,
 };
 
 const CF_UNICODETEXT: u32 = 13;
@@ -43,14 +44,13 @@ pub fn set_text(text: &str) -> Result<()> {
             // Allocate global memory to hold the text
             let hglobal = GlobalAlloc(GMEM_MOVEABLE, length * 2).context("GlobalAlloc")?;
 
-            // Acquire a pointer to the memory
-            let dest = global_lock(hglobal)?;
+            {
+                // Acquire a pointer to the memory (custom smart pointer, see hglobal.rs)
+                let dest: GlobalMemory<u16> = hglobal.lock()?;
 
-            // Copy the text to the buffer
-            std::ptr::copy_nonoverlapping(utf16.as_ptr(), dest, length);
-
-            // Release the pointer
-            global_unlock(hglobal)?;
+                // Copy the text to the buffer
+                std::ptr::copy_nonoverlapping(utf16.as_ptr(), dest.as_ptr(), length);
+            }
 
             // Place the handle on the clipboard
             SetClipboardData(CF_UNICODETEXT, Some(HANDLE(hglobal.0)))
@@ -90,14 +90,11 @@ pub fn get_text() -> Result<Option<String>> {
                 Err(_) => return Ok(None), // Clipboard changed while we were opening it
             };
 
-            // Acquire a pointer to the buffer
-            let ptr = global_lock(hglobal)?;
+            // Acquire a pointer to the memory (custom smart pointer, see hglobal.rs)
+            let mem: GlobalMemory<u16> = hglobal.lock()?;
 
             // Read the buffer as a PWSTR (null-terminated UTF-16) and convert it to a string
-            let str = String::from_utf16_lossy(PWSTR::from_raw(ptr).as_wide());
-
-            // Release the pointer
-            global_unlock(hglobal)?;
+            let str = String::from_utf16_lossy(PWSTR::from_raw(mem.as_ptr()).as_wide());
 
             Ok(Some(str))
         })();
@@ -141,29 +138,5 @@ unsafe fn open_clipboard() -> Result<()> {
         }
         std::thread::sleep(Duration::from_millis(100));
         i -= 1;
-    }
-}
-
-// TODO: We could turn this into a smart pointer by implementing a struct that calls GlobalUnlock
-// when dropped
-unsafe fn global_lock(hglobal: HGLOBAL) -> Result<*mut u16> {
-    let ptr = unsafe { GlobalLock(hglobal).cast::<u16>() };
-    if ptr.is_null() {
-        Err(Error::new(Win32Error::from_win32()).context("GlobalLock"))
-    } else {
-        Ok(ptr)
-    }
-}
-
-unsafe fn global_unlock(hglobal: HGLOBAL) -> Result<()> {
-    // The GlobalUnlock wrapper is implemented incorrectly. The returned boolean indicates whether
-    // the memory object is still locked, not whether the call succeeded. In our case it will always
-    // be false, which windows-rs wrongly interprets as "failed," however in doing so it calls
-    // GetLastError for us, so we can check its HRESULT to see if it really failed or not.
-    unsafe {
-        match GlobalUnlock(hglobal) {
-            Err(err) if err.code().is_err() => Err(Error::new(err).context("GlobalUnlock")),
-            _ => Ok(()),
-        }
     }
 }

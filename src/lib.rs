@@ -6,5 +6,6 @@ pub mod macros;
 pub mod recycle_bin;
 pub mod wslpath;
 
+mod hglobal;
 mod recycle_error;
 mod recycle_progress_sink;
