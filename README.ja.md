@@ -3,17 +3,19 @@
   wsl-tools
   <br />
   <sup><sub>
-    <a href="#インストール">インストール</a>
-    &nbsp;│&nbsp;
     <a href="README.md">English</a>
+    &nbsp;│&nbsp;
+    <a href="#インストール">インストール</a>
     &nbsp;│&nbsp;
     <a href="#xsel"><code>xsel</code></a>
     &nbsp;│&nbsp;
     <a href="#recycle"><code>recycle</code></a>
+    &nbsp;│&nbsp;
+    <a href="#open"><code>open</code></a>
   </sub></sup>
 </h1>
 
-WSL用のRust製クリップボード（xsel）とゴミ箱（recycle）のコマンドです。遅くて時々壊れる（Unicodeに正しく対応しないなど）PowerShellベースのソリューションにうんざりしたため、自作しました。私の作品のすべてと同じく完全に人間の手で書かれたものです。
+WSL用のRust製クリップボード（xsel）とゴミ箱（recycle）とオーペン（open）のコマンドです。遅くて時々壊れる（Unicodeに正しく対応しないなど）PowerShellベースのソリューションにうんざりしたため、自作しました。私の作品のすべてと同じく完全に人間の手で書かれたものです。
 
 それぞれのプログラムはLinuxバイナリもWindowsバイナリも含まれています。前者はパスの変換やパイプの確認を行った上で、WINAPIを呼び出すためにexeに処理を渡します。そのexeはWSL専用ではなく、バッチスクリプトなどで単独で使用することも可能です。
 
@@ -98,11 +100,11 @@ Windowsのごみ箱が英語で「Recycle Bin」と呼ばれているため、�
 
 指定したファイルとディレクトリをごみ箱に移動する。
 
-デフォルトの動作（--rmなし）は、ユーザーがExplorerでファイルを削除した場合と同じように、
-シェルの普通の進捗や確認ダイアログを表示して、Explorerの元に戻す履歴に追加することです。
-これはWindows APIの制限による：ダイアログなしでファイルをごみ箱に移動することは、シェル
-が永久に削除してしまうリスクが伴うので不可能です。ゆえに、スクリプトではユーザーが期待して
-いない時にこのコマンドを--rmなしで使用してはならない。
+デフォルトの動作（--rmなし）は、ユーザーがエクスプローラーでファイルを削除した場合と同じ
+ように、シェルの普通の進捗や確認ダイアログを表示して、エクスプローラーの元に戻す履歴に追加
+することです。これはWindows APIの制限による：ダイアログなしでファイルをごみ箱に移動する
+ことは、シェルが永久に削除してしまうリスクが伴うので不可能です。ゆえに、スクリプトでは
+ユーザーが期待していない時にこのコマンドを--rmなしで使用してはならない。
 
 引数:
   <パス>...
@@ -123,7 +125,7 @@ Windowsのごみ箱が英語で「Recycle Bin」と呼ばれているため、�
           • ディレクトリは再帰的に削除される。
 
           • WSLファイルシステム上でsudoが必要なファイルは、recycleを使って削除できない
-          　（Explorerには不可能だ）。
+          　（エクスプローラーには不可能だ）。
 
   -v, --verbose
           削除進捗をターミナルで表示する
@@ -133,6 +135,42 @@ Windowsのごみ箱が英語で「Recycle Bin」と呼ばれているため、�
 
   -V, --version
           バーション情報を表示する
+```
+
+## open
+
+[ShellExecuteExW](https://learn.microsoft.com/ja-jp/windows/win32/api/shellapi/nf-shellapi-shellexecuteexw)の簡単なラッパーです。
+
+> [!IMPORTANT]
+> UbuntuとDebianでは[alternativesシステム](https://manpages.debian.org/wheezy/dpkg/update-alternatives.8.ja.html)が/usr/bin/openやデフォルトのブラウザでリンクを開くために使われる2つのコマンドのシンボリックリンクを管理しているかもしれません。そのリンクが代わりにwsl-toolに指すようにできます：
+> ```bash
+> for cmd in open www-browser x-www-browser; do
+>   sudo update-alternatives --install "/usr/bin/$cmd" "$cmd" '/mnt/c/Program Files/wsl-tools/open' 999
+> done
+> ```
+
+> [!TIP]
+> `open -e image.png`は、image.pngを右クリックして「編集」を選択するのと同じです。デフォルトではペイントで開くんですが、Winaero Tweakerを使うか、regeditでこのキーを変更することで、好みの画像編集ソフトに設定できます： `HKEY_CLASSES_ROOT\SystemFileAssociations\image\shell\edit\command`
+
+```
+使い方: open [オプション] <パス>...
+
+指定されたファイルまたはURLをデフォルトのプログラムで開きます（ディレクトリは
+エクスプローラーで開きます）。
+
+--verbに関する詳細は、次を参照してください：
+https://learn.microsoft.com/ja-jp/windows/win32/shell/launch#object-verbs
+
+引数:
+  <パス>...  開くファイル、ディレクトリ、および/またはURL。Linuxパスは自動的に
+             Windowsパスに変換される。
+
+オプション:
+  -e, --edit         --verb editのエイリアス
+      --runas        --verb runasのエイリアス
+      --verb <VERB>  実行すべき動詞
+  -h, --help         ヘルプを表示する
+  -V, --version      バーション情報を表示する
 ```
 
 ## 法的事項

@@ -3,17 +3,19 @@
   wsl-tools
   <br />
   <sup><sub>
-    <a href="#install">Install</a>
-    &nbsp;│&nbsp;
     <a href="README.ja.md">日本語</a>
+    &nbsp;│&nbsp;
+    <a href="#install">Install</a>
     &nbsp;│&nbsp;
     <a href="#xsel"><code>xsel</code></a>
     &nbsp;│&nbsp;
     <a href="#recycle"><code>recycle</code></a>
+    &nbsp;│&nbsp;
+    <a href="#open"><code>open</code></a>
   </sub></sup>
 </h1>
 
-Clipboard (xsel) & recycle commands for WSL written in Rust. I created this after getting fed up with PowerShell-based solutions being slow and janky (e.g. not handling Unicode properly). Human-coded, as with all of my work.
+Clipboard (xsel), recycle, and open commands for WSL written in Rust. I created this after getting fed up with PowerShell-based solutions being slow and janky (e.g. not handling Unicode properly). Human-coded, as with all of my work.
 
 The programs come with both Linux and Windows binaries: the former is used to translate paths / check pipes before passing things along to the exe to call the relevant winapis. The exe's aren't WSL-specific and can be used by themselves e.g. in batch scripts if needed.
 
@@ -133,6 +135,42 @@ Options:
 
   -V, --version
           Print version
+```
+
+## open
+
+Simple wrapper for [ShellExecuteExW](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecuteexw).
+
+> [!IMPORTANT]
+> On Ubuntu/Debian, the [alternatives system](https://manpages.ubuntu.com/manpages/trusty/man8/update-alternatives.8.html) may be managing symlinks for /usr/bin/open and two commands used for opening links in the default browser, all of which can be pointed at wsl-tools instead:
+> ```bash
+> for cmd in open www-browser x-www-browser; do
+>   sudo update-alternatives --install /usr/bin/$cmd $cmd '/mnt/c/Program Files/wsl-tools/open' 999
+> done
+> ```
+
+> [!TIP]
+> Running `open -e image.png` is equivalent to right-clicking on image.png and selecting Edit. By default this opens Paint; you can change it to your preferred image editor using Winaero Tweaker or by modifying this key in regedit: `HKEY_CLASSES_ROOT\SystemFileAssociations\image\shell\edit\command`
+
+```
+Usage: open [OPTIONS] <PATHS>...
+
+Opens the given files or URLs in their default programs (directories open in
+Explorer).
+
+For details regarding --verb, see:
+https://learn.microsoft.com/en-us/windows/win32/shell/launch#object-verbs
+
+Arguments:
+  <PATHS>...  Files, directories, and/or URLs to open. Linux paths are
+              automatically converted to Windows paths.
+
+Options:
+  -e, --edit         Alias for --verb edit
+      --runas        Alias for --verb runas
+      --verb <VERB>  Verb to execute
+  -h, --help         Print help
+  -V, --version      Print version
 ```
 
 ## Legal stuff
