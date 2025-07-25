@@ -173,6 +173,28 @@ fn option_to_ignore_not_found() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[test]
+fn does_nothing_if_nothing_to_do() -> Result<(), Box<dyn Error>> {
+    // Check with empty paths
+    let empty: [&str; 0] = [];
+    recycle_bin::recycle(empty, RECYCLE_NORMAL)
+        .expect("if paths is empty, it should not call PerformOperations as that will cause a 'Catastrophic failure'");
+
+    // Check with ignore not found and only nonexistent files
+    let temp_dir = env::temp_dir();
+    let not_exist = temp_dir.join("does_nothing_if_nothing_to_do.test");
+    assert!(!fs::exists(&not_exist)?);
+    recycle_bin::recycle(
+        [
+            not_exist.to_str().unwrap(),
+        ],
+        RECYCLE_IGNORE_NOT_FOUND,
+    )
+        .expect("if all of the paths were ignored, it should not call PerformOperations as that will cause a 'Catastrophic failure'");
+
+    Ok(())
+}
+
 /// Creates a file in /tmp with the given name and returns its Windows path. (Using bash to keep
 /// tests portable since it has the distro name in it, e.g. \\wsl.localhost\Arch\tmp\foo)
 fn create_file_in_wsl(name: &str) -> String {

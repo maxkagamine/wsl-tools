@@ -225,6 +225,8 @@ where
             op.SetOperationFlags(FOFX_ADDUNDORECORD | FOFX_RECYCLEONDELETE)?;
         }
 
+        let mut any_to_recycle = false;
+
         for path in paths {
             // Resolve relative paths and convert to a null-terminated UTF-16 string.
             // path::absolute() calls GetFullPathNameW internally on Windows.
@@ -255,6 +257,13 @@ where
             // [0]: https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifileoperation-copyitem#examples
             // [1]: https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/Win7Samples/winui/shell/appplatform/FileOperationProgressSink/ProgressSinkSampleApp.cpp#L435
             op.DeleteItem(&item, None)?;
+            any_to_recycle = true;
+        }
+
+        // Bail if there's nothing to recycle (empty paths or all nonexistent and ignored), as
+        // PerformOperations will throw a "Catastrophic failure" if the operation is empty.
+        if !any_to_recycle {
+            return Ok(());
         }
 
         // Set up the sink if a callback was provided
