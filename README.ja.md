@@ -95,6 +95,9 @@ Xオプション
 
 Windowsのごみ箱が英語で「Recycle Bin」と呼ばれているため、この名前を付けました。
 
+> [!NOTE]
+> WSLファイルシステム上のファイルをごみ箱に移動してみる時に「Element not found.」というエラーが出る場合は、`wsl.exe --update`を実行、および/または再起動してみてください。これは\\\\wsl.localhostパスに関するWindowsのバグのようですが、原因は不明です（[microsoft/WSL#12444](https://github.com/microsoft/WSL/issues/12444), [microsoft/WSL#11252](https://github.com/microsoft/WSL/issues/11252)）。
+
 ```
 使い方: recycle [オプション] <パス>...
 
@@ -142,7 +145,9 @@ Windowsのごみ箱が英語で「Recycle Bin」と呼ばれているため、�
 [ShellExecuteExW](https://learn.microsoft.com/ja-jp/windows/win32/api/shellapi/nf-shellapi-shellexecuteexw)の簡単なラッパーです。
 
 > [!IMPORTANT]
-> UbuntuとDebianでは[alternativesシステム](https://manpages.debian.org/wheezy/dpkg/update-alternatives.8.ja.html)が/usr/bin/openやデフォルトのブラウザでリンクを開くために使われる2つのコマンドのシンボリックリンクを管理しているかもしれません。そのリンクが代わりにwsl-toolに指すようにできます：
+> .bashrcとかに`export BROWSER='open'`に追加してください。
+> 
+> UbuntuとDebianでは[alternativesシステム](https://manpages.debian.org/wheezy/dpkg/update-alternatives.8.ja.html)が/usr/bin/openやデフォルトのブラウザでリンクを開くために使われる2つのコマンドのシンボリックリンクを管理しているかもしれません。そのリンクが代わりにwsl-toolsに指すようにできます：
 > ```bash
 > for cmd in open www-browser x-www-browser; do
 >   sudo update-alternatives --install "/usr/bin/$cmd" "$cmd" '/mnt/c/Program Files/wsl-tools/open' 999

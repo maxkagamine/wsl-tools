@@ -94,6 +94,9 @@ Miscellaneous options
 
 See [remarks in source](src/recycle_bin.rs).
 
+> [!NOTE]
+> If you get an "Element not found." error when trying to recycle files in the WSL filesystem, try `wsl.exe --update` and/or restarting. This appears to be a problem with Windows and \\\\wsl.localhost paths, but the cause is unknown ([microsoft/WSL#12444](https://github.com/microsoft/WSL/issues/12444), [microsoft/WSL#11252](https://github.com/microsoft/WSL/issues/11252)).
+
 ```
 Usage: recycle [OPTIONS] <PATHS>...
 
@@ -142,6 +145,8 @@ Options:
 Simple wrapper for [ShellExecuteExW](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecuteexw).
 
 > [!IMPORTANT]
+> Add `export BROWSER='open'` to your .bashrc or similar.
+> 
 > On Ubuntu/Debian, the [alternatives system](https://manpages.ubuntu.com/manpages/trusty/man8/update-alternatives.8.html) may be managing symlinks for /usr/bin/open and two commands used for opening links in the default browser, all of which can be pointed at wsl-tools instead:
 > ```bash
 > for cmd in open www-browser x-www-browser; do
