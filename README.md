@@ -17,7 +17,9 @@
 
 Clipboard (xsel), recycle, and open commands for WSL written in Rust. I created this after getting fed up with PowerShell-based solutions being slow and janky (e.g. not handling Unicode properly). Human-coded, as with all of my work.
 
-The programs come with both Linux and Windows binaries: the former is used to translate paths / check pipes before passing things along to the exe to call the relevant winapis. The exe's aren't WSL-specific and can be used by themselves e.g. in batch scripts if needed.
+The programs come with both Linux and Windows binaries: the former is used to translate paths / check pipes before passing things along to the exe to call the relevant winapis. The exe's aren't WSL-specific and can be used by themselves in batch scripts etc. if needed.
+
+As a bonus, I've added an option to the installer that makes <img src="https://code.visualstudio.com/assets/apple-touch-icon.png" height="16" align="center" /> **Open with Code** in Explorer's context menu always open in WSL. It uses [another small binary](src/bin/code-wsl.rs) to do the path translation and launch Code, in order to avoid the console flash / quoting issues seen [here](https://stackoverflow.com/questions/59336461/how-to-open-vscode-remote-wsl-by-right-click).
 
 ## Install
 
