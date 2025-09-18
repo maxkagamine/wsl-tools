@@ -5,12 +5,19 @@ use core::str;
 use std::{ffi::OsStr, io, process::Command};
 
 fn wslpath<T: AsRef<OsStr>>(path: T, option: &str) -> io::Result<String> {
-    let mut cmd = if cfg!(windows) {
-        let mut cmd = Command::new("wsl.exe");
-        cmd.arg("-e"); // Execute command without using the shell (avoids escaping issues)
-        cmd.arg("wslpath");
-        cmd
-    } else {
+    let mut cmd = {
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            use windows::Win32::System::Threading::CREATE_NO_WINDOW;
+
+            let mut cmd = Command::new("wsl.exe");
+            cmd.creation_flags(CREATE_NO_WINDOW.0); // Prevent console window appearing if running from non-console exe
+            cmd.arg("-e"); // Execute command without using the shell (avoids escaping issues)
+            cmd.arg("wslpath");
+            cmd
+        }
+        #[cfg(unix)]
         Command::new("wslpath")
     };
 
