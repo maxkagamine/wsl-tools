@@ -1,3 +1,5 @@
+INNO?=/mnt/c/Program\ Files\ \(x86\)/Inno\ Setup\ 6/ISCC.exe
+
 BIN_NAMES:=$(basename $(notdir $(wildcard src/bin/*)))
 
 TARGET_LINUX:=x86_64-unknown-linux-gnu
@@ -17,7 +19,11 @@ SOURCE_FILES:=$(shell fd '\.rs$$') Cargo.toml Cargo.lock
 dist/wsl-tools-installer.exe: $(ALL_BINS) LICENSE.txt Setup.iss
 	rm -rf dist && mkdir -p dist/wsl-tools
 	cp $(ALL_BINS) LICENSE.txt dist/wsl-tools
-	/mnt/c/Program\ Files\ \(x86\)/Inno\ Setup\ 6/ISCC.exe Setup.iss
+ifeq ($(wildcard $(INNO)),)
+	$(warning ⚠️  Inno Setup 6 not installed, skipping installer ⚠️ )
+else
+	$(INNO) Setup.iss
+endif
 	cd dist && rm -f wsl-tools-portable.zip && zip -r wsl-tools-portable.zip wsl-tools
 	rm -rf dist/wsl-tools
 

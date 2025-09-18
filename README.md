@@ -29,7 +29,7 @@ The programs come with both Linux and Windows binaries: the former is used to tr
 or [download zip](https://github.com/maxkagamine/wsl-tools/releases/latest/download/wsl-tools-portable.zip), or compile from source:
 
 1. [Install Rust](https://rustup.rs/) (in WSL, not Windows)
-2. [Install Inno Setup 6.4+](https://jrsoftware.org/isdl.php)
+2. [Install Inno Setup 6.4+](https://jrsoftware.org/isdl.php) (Optional)
 3. Set up for cross-compilation:
    - Ubuntu: `sudo apt-get install mingw-w64 && rustup target add x86_64-pc-windows-gnu`
    - Arch: `sudo pacman -Syu mingw-w64 && rustup target add x86_64-pc-windows-gnu`
