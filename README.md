@@ -19,7 +19,11 @@ Clipboard (xsel), recycle, and open commands for WSL written in Rust. I created 
 
 The programs come with both Linux and Windows binaries: the former is used to translate paths / check pipes before passing things along to the exe to call the relevant winapis. The exe's aren't WSL-specific and can be used by themselves in batch scripts etc. if needed.
 
-As a bonus, I've added an option to the installer that makes <img src="https://code.visualstudio.com/assets/apple-touch-icon.png" height="16" align="center" /> **Open with Code** in Explorer's context menu always open in WSL. It uses [another small binary](src/bin/code-wsl.rs) to do the path translation and launch Code, in order to avoid the console flash / quoting issues seen [here](https://stackoverflow.com/questions/59336461/how-to-open-vscode-remote-wsl-by-right-click).
+As a bonus, I've added two options to the installer (if you choose to use it):
+
+1. Make "<img src="https://code.visualstudio.com/assets/apple-touch-icon.png" height="16" align="center" /> Open with Code" in Explorer's context menu always open in WSL. This uses [another small binary](src/bin/code-wsl.rs) to do the path translation and launch VSCode in order to avoid the console flash / quoting issues seen [here](https://stackoverflow.com/questions/59336461/how-to-open-vscode-remote-wsl-by-right-click).
+
+2. Add "Run" to the context menu of .sh files. Similarly uses a [helper program](src/bin/run-in-wsl.rs) to run wsl.exe, making sure the environment is the same as if you had run the script from a terminal while simultaneously avoiding quoting issues and respecting the shebang. _(Note: You can prevent Windows Terminal from closing automatically by changing Settings → Defaults → Advanced → Profile termination behavior.)_
 
 ## Install
 
