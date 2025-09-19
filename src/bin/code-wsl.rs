@@ -19,7 +19,7 @@ https://github.com/maxkagamine/wsl-tools"),
 {usage-heading} {usage}
 {about-section}
 {all-args}",
-    max_term_width = 80,
+    term_width = 0,
 )]
 struct Args {
     /// File or directory path.
@@ -30,11 +30,7 @@ struct Args {
 fn main() {
     use anyhow::{Context, Result};
     use std::process::Command;
-    use windows::{
-        Win32::UI::WindowsAndMessaging::{MB_OK, MessageBoxW},
-        core::PCWSTR,
-    };
-    use wsl_tools::wslpath;
+    use wsl_tools::{message_box, wslpath};
 
     let result = (|| -> Result<()> {
         let args = Args::try_parse()?;
@@ -54,18 +50,7 @@ fn main() {
     })();
 
     if let Err(err) = result {
-        unsafe {
-            let message = format!("{err}");
-            let mut message_u16 = message.encode_utf16().chain(Some(0)).collect::<Vec<_>>();
-
-            MessageBoxW(
-                None,
-                PCWSTR::from_raw(message_u16.as_mut_ptr()),
-                PCWSTR::null(),
-                MB_OK,
-            );
-        }
-
+        message_box::show(err.to_string(), None::<&str>, None);
         std::process::exit(1);
     }
 }

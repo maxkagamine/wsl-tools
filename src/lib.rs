@@ -3,6 +3,7 @@
 
 pub mod clipboard;
 pub mod macros;
+pub mod message_box;
 pub mod process;
 pub mod recycle_bin;
 pub mod wslpath;

@@ -12,6 +12,7 @@ LegalCopyright = "Copyright © Max Kagamine"
 [dependencies]
 anyhow = "1.0.97"
 clap = { version = "4.5.32", features = ["cargo", "derive", "wrap_help"] }
+shell-escape = "0.1.5"
 
 [target.'cfg(windows)'.dependencies]
 windows-core = "0.61.0"
