@@ -1,11 +1,12 @@
 INNO?=/mnt/c/Program\ Files\ \(x86\)/Inno\ Setup\ 6/ISCC.exe
 
 BIN_NAMES:=$(basename $(notdir $(wildcard src/bin/*)))
+WINDOWS_ONLY_BINS:=code-wsl run-in-wsl
 
 TARGET_LINUX:=x86_64-unknown-linux-gnu
 TARGET_WINDOWS:=x86_64-pc-windows-gnu
 
-BINS_LINUX:=$(addprefix target/$(TARGET_LINUX)/release/,$(filter-out code-wsl,$(BIN_NAMES)))
+BINS_LINUX:=$(addprefix target/$(TARGET_LINUX)/release/,$(filter-out $(WINDOWS_ONLY_BINS),$(BIN_NAMES)))
 BINS_WINDOWS:=$(addprefix target/$(TARGET_WINDOWS)/release/,$(addsuffix .exe,$(BIN_NAMES)))
 ALL_BINS:=$(BINS_LINUX) $(BINS_WINDOWS)
 

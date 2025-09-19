@@ -45,6 +45,10 @@ en.AddToPath=Add to PATH
 ja.AddToPath=PATHに追加する
 en.MakeOpenWithCodeOpenInWsl=Make "Open with Code" open in WSL
 ja.MakeOpenWithCodeOpenInWsl=「Code で開く」をWSLで開くようにする
+en.AddRunToShFiles=Add "%1" to context menu of .sh files
+ja.AddRunToShFiles=.shファイルのコンテクストメニューに「%1」を追加する
+en.RunContextMenuText=Run
+ja.RunContextMenuText=実行
 
 [Files]
 Source: "dist\wsl-tools\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -52,6 +56,14 @@ Source: "dist\wsl-tools\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdir
 [Tasks]
 Name: "AddToPath"; Description: "{cm:AddToPath}"
 Name: "MakeOpenWithCodeOpenInWsl"; Description: "{cm:MakeOpenWithCodeOpenInWsl}"; Flags: unchecked; Check: IsVSCodeInstalled
+Name: "AddRunToShFiles"; Description: "{cm:AddRunToShFiles,{cm:RunContextMenuText}}"; Flags: unchecked
+
+[Registry]
+#define SFA "SOFTWARE\Classes\SystemFileAssociations"
+Root: HKLM; Subkey: "{#SFA}\.sh"; Flags: uninsdeletekeyifempty; Tasks: AddRunToShFiles
+Root: HKLM; Subkey: "{#SFA}\.sh\shell"; Flags: uninsdeletekeyifempty; Tasks: AddRunToShFiles
+Root: HKLM; Subkey: "{#SFA}\.sh\shell\run-in-wsl"; ValueType: string; ValueName: ""; ValueData: "{cm:RunContextMenuText}"; Flags: uninsdeletekey; Tasks: AddRunToShFiles
+Root: HKLM; Subkey: "{#SFA}\.sh\shell\run-in-wsl\command"; ValueType: string; ValueName: ""; ValueData: """{app}\run-in-wsl.exe"" ""%1"""; Tasks: AddRunToShFiles
 
 [Code]
 const EnvironmentKey = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
