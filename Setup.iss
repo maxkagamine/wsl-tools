@@ -43,12 +43,15 @@ Name: "ja"; MessagesFile: "compiler:Languages\Japanese.isl"
 [CustomMessages]
 en.AddToPath=Add to PATH
 ja.AddToPath=PATHに追加する
+en.MakeOpenWithCodeOpenInWsl=Make "Open with Code" open in WSL
+ja.MakeOpenWithCodeOpenInWsl=「Code で開く」をWSLで開くようにする
 
 [Files]
 Source: "dist\wsl-tools\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Tasks]
 Name: "AddToPath"; Description: "{cm:AddToPath}"
+Name: "MakeOpenWithCodeOpenInWsl"; Description: "{cm:MakeOpenWithCodeOpenInWsl}"; Flags: unchecked; Check: IsVSCodeInstalled
 
 [Code]
 const EnvironmentKey = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
@@ -91,14 +94,80 @@ begin
     RaiseException('Could not write to HKEY_LOCAL_MACHINE\' + EnvironmentKey);
 end;
 
+function GetVSCodeExe(): String;
+var
+  Command: String;
+  Args: array of String;
+begin
+  if not RegQueryStringValue(HKEY_CLASSES_ROOT, 'Applications\Code.exe\shell\open\command', '', Command) then
+  begin
+    Result := '';
+    exit;
+  end;
+
+  Args := StringSplitEx(Command, [' '], '"', stExcludeEmpty);
+  Result := RemoveQuotes(Args[0]);
+end;
+
+function IsVSCodeInstalled(): Boolean;
+begin
+  Result := (GetVSCodeExe() <> '') and RegKeyExists(HKEY_CLASSES_ROOT, '*\shell\VSCode\command');
+end;
+
+function ShouldResetVSCodeRegistryKeys(): Boolean;
+var
+  Command: String;
+begin
+  Result := RegQueryStringValue(HKEY_CLASSES_ROOT, '*\shell\VSCode\command', '', Command) and (Pos('code-wsl.exe', Command) > 0);
+end;
+
+procedure UpdateVSCodeRegistryKeys();
+var
+  Exe: String;
+begin
+  { Bail if VS Code isn't installed }
+  if not IsVSCodeInstalled() then
+    exit;
+
+  { Decide if we're replacing Code.exe with our binary, setting it back to the original, or leaving it as is }
+  if (IsUninstaller() or not WizardIsTaskSelected('MakeOpenWithCodeOpenInWsl')) and ShouldResetVSCodeRegistryKeys() then
+    Exe := GetVSCodeExe()
+  else if WizardIsTaskSelected('MakeOpenWithCodeOpenInWsl') then
+    Exe := ExpandConstant('{app}\code-wsl.exe')
+  else
+    exit;
+
+  { Update all the things }
+  { https://github.com/microsoft/vscode/blob/50b5aa895467bcc17c91c9d2357f670969d4da3d/build/win32/code.iss#L1270C1-L1280C1 }
+  RegWriteExpandStringValue(HKEY_CLASSES_ROOT, '*\shell\VSCode\command', '', '"' + Exe + '" "%1"');
+  RegWriteExpandStringValue(HKEY_CLASSES_ROOT, 'Directory\shell\VSCode\command', '', '"' + Exe + '" "%V"');
+  RegWriteExpandStringValue(HKEY_CLASSES_ROOT, 'Directory\Background\shell\VSCode\command', '', '"' + Exe + '" "%V"');
+  RegWriteExpandStringValue(HKEY_CLASSES_ROOT, 'Drive\shell\VSCode\command', '', '"' + Exe + '" "%V"');
+
+  { "Open with Code" doesn't normally show up when right-clicking the background of a Library, but I added it myself }
+  { since the Libraries feature is useful for combining a Projects folder in WSL with a separate one in Windows }
+  if RegKeyExists(HKEY_CLASSES_ROOT, 'LibraryFolder\Background\shell\VSCode\command') then
+    RegWriteExpandStringValue(HKEY_CLASSES_ROOT, 'LibraryFolder\Background\shell\VSCode\command', '', '"' + Exe + '" "%V"');
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if (CurStep = ssPostInstall) and WizardIsTaskSelected('AddToPath') then
-    AddToPath(ExpandConstant('{app}'));
+  if CurStep = ssPostInstall then
+  begin
+    if WizardIsTaskSelected('AddToPath') then
+      AddToPath(ExpandConstant('{app}'))
+    else
+      RemoveFromPath(ExpandConstant('{app}'));
+
+    UpdateVSCodeRegistryKeys();
+  end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
+  begin
     RemoveFromPath(ExpandConstant('{app}'));
+    UpdateVSCodeRegistryKeys();
+  end;
 end;

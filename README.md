@@ -17,7 +17,9 @@
 
 Clipboard (xsel), recycle, and open commands for WSL written in Rust. I created this after getting fed up with PowerShell-based solutions being slow and janky (e.g. not handling Unicode properly). Human-coded, as with all of my work.
 
-The programs come with both Linux and Windows binaries: the former is used to translate paths / check pipes before passing things along to the exe to call the relevant winapis. The exe's aren't WSL-specific and can be used by themselves e.g. in batch scripts if needed.
+The programs come with both Linux and Windows binaries: the former is used to translate paths / check pipes before passing things along to the exe to call the relevant winapis. The exe's aren't WSL-specific and can be used by themselves in batch scripts etc. if needed.
+
+As a bonus, I've added an option to the installer that makes <img src="https://code.visualstudio.com/assets/apple-touch-icon.png" height="16" align="center" /> **Open with Code** in Explorer's context menu always open in WSL. It uses [another small binary](src/bin/code-wsl.rs) to do the path translation and launch Code, in order to avoid the console flash / quoting issues seen [here](https://stackoverflow.com/questions/59336461/how-to-open-vscode-remote-wsl-by-right-click).
 
 ## Install
 
@@ -28,12 +30,12 @@ The programs come with both Linux and Windows binaries: the former is used to tr
 
 or [download zip](https://github.com/maxkagamine/wsl-tools/releases/latest/download/wsl-tools-portable.zip), or compile from source:
 
-- [Install Rust](https://rustup.rs/) (in WSL, not Windows)
-- [Install Inno Setup 6](https://jrsoftware.org/isdl.php) (optional)
-- Set up for cross-compilation:
-  - Ubuntu: `sudo apt-get install mingw-w64 && rustup target add x86_64-pc-windows-gnu`
-  - Arch: `sudo pacman -Syu mingw-w64 && rustup target add x86_64-pc-windows-gnu`
-- Run `make`
+1. [Install Rust](https://rustup.rs/) (in WSL, not Windows)
+2. [Install Inno Setup 6.4+](https://jrsoftware.org/isdl.php) (Optional)
+3. Set up for cross-compilation:
+   - Ubuntu: `sudo apt-get install mingw-w64 && rustup target add x86_64-pc-windows-gnu`
+   - Arch: `sudo pacman -Syu mingw-w64 && rustup target add x86_64-pc-windows-gnu`
+4. Run `make`
 
 ## xsel
 

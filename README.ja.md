@@ -19,6 +19,8 @@ WSL用のRust製クリップボード（xsel）とゴミ箱（recycle）とオ�
 
 それぞれのプログラムはLinuxバイナリもWindowsバイナリも含まれています。前者はパスの変換やパイプの確認を行った上で、WINAPIを呼び出すためにexeに処理を渡します。そのexeはWSL専用ではなく、バッチスクリプトなどで単独で使用することも可能です。
 
+ボーナスとして、私はエクスプローラーのコンテキストメニューの「<img src="https://code.visualstudio.com/assets/apple-touch-icon.png" height="16" align="center" /> **Codeで開く**」をいつもWSLで開くようにするオプションをインストーラに追加しました。[ここで見える](https://stackoverflow.com/questions/59336461/how-to-open-vscode-remote-wsl-by-right-click)コンソールのチラつきや引用符の扱いの問題を避けるために、[もう一つの小さなバイナリ](src/bin/code-wsl.rs)でパスを変換してCodeを実行しています。
+
 ## インストール
 
 > [!IMPORTANT]
@@ -28,12 +30,12 @@ WSL用のRust製クリップボード（xsel）とゴミ箱（recycle）とオ�
 
 または[ZIPをダウンロード](https://github.com/maxkagamine/wsl-tools/releases/latest/download/wsl-tools-portable.zip)、またはソースからコンパイル：
 
-- [Rustをインストールして](https://rustup.rs/)（Windowsではなく、WSLで）
-- [Inno Setup 6をインストールして](https://jrsoftware.org/isdl.php)（任意）
-- クロスコンパイルのために準備して：
-  - Ubuntu: `sudo apt-get install mingw-w64 && rustup target add x86_64-pc-windows-gnu`
-  - Arch: `sudo pacman -Syu mingw-w64 && rustup target add x86_64-pc-windows-gnu`
-- `make`を実行して
+1. [Rustをインストールして](https://rustup.rs/)（Windowsではなく、WSLで）
+2. [Inno Setup 6.4+をインストールして](https://jrsoftware.org/isdl.php)（任意）
+3. クロスコンパイルのために準備して：
+   - Ubuntu: `sudo apt-get install mingw-w64 && rustup target add x86_64-pc-windows-gnu`
+   - Arch: `sudo pacman -Syu mingw-w64 && rustup target add x86_64-pc-windows-gnu`
+4. `make`を実行して
 
 ## xsel
 
