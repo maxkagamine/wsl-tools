@@ -41,6 +41,11 @@ fn main() {
     use std::{os::windows::process::CommandExt, process::Command};
     use wsl_tools::message_box;
 
+    std::panic::set_hook(Box::new(|info| {
+        message_box::show(info.to_string(), None::<&str>, None);
+        std::process::exit(1);
+    }));
+
     let result = (|| -> Result<()> {
         let args = Args::try_parse()?;
         let path = std::fs::canonicalize(&args.path)?;
@@ -81,7 +86,7 @@ fn main() {
     })();
 
     if let Err(err) = result {
-        message_box::show(err.to_string(), None::<&str>, None);
+        message_box::show(format!("{err:?}"), None::<&str>, None);
         std::process::exit(1);
     }
 }

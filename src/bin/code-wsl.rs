@@ -32,6 +32,11 @@ fn main() {
     use std::process::Command;
     use wsl_tools::{message_box, wslpath};
 
+    std::panic::set_hook(Box::new(|info| {
+        message_box::show(info.to_string(), None::<&str>, None);
+        std::process::exit(1);
+    }));
+
     let result = (|| -> Result<()> {
         let args = Args::try_parse()?;
 
@@ -50,7 +55,7 @@ fn main() {
     })();
 
     if let Err(err) = result {
-        message_box::show(err.to_string(), None::<&str>, None);
+        message_box::show(format!("{err:?}"), None::<&str>, None);
         std::process::exit(1);
     }
 }
@@ -62,6 +67,7 @@ fn main() {
 
 #[cfg(windows)]
 fn get_vscode_exe() -> anyhow::Result<String> {
+    use anyhow::Context;
     use windows::{
         Win32::{
             Foundation::{ERROR_MORE_DATA, ERROR_SUCCESS},
@@ -88,9 +94,12 @@ fn get_vscode_exe() -> anyhow::Result<String> {
         } {
             ERROR_SUCCESS => {
                 unsafe {
-                    buffer.set_len(buffer_size as usize);
+                    buffer.set_len(buffer_size as usize / 2);
                 }
-                let length = buffer.iter().position(|&x| x == 0).unwrap_or(buffer.len());
+                let length = buffer
+                    .iter()
+                    .position(|&x| x == 0)
+                    .context("pvData missing null-terminator")?;
                 let value = String::from_utf16(&buffer[..length])?;
                 return Ok(exe_from_command_string(&value));
             }
