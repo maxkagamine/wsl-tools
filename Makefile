@@ -41,5 +41,7 @@ target/%/.test: $(SOURCE_FILES)
 	cargo test --target $* -- --test-threads=1
 	@touch target/$*/.test
 
-.PHONY: test
+.PHONY: test install
 test: $(ALL_TESTS)
+install: dist/wsl-tools-installer.exe
+	$<
