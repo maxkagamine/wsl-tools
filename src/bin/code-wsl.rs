@@ -42,9 +42,18 @@ fn main() {
 
         let vscode_exe = vscode::get_vscode_exe().context("Failed to locate Code.exe")?;
         let distro_name = get_distro_name().context("Failed to get distro name")?;
-        let wsl_path = wslpath::to_wsl(&args.path).context("Failed to get WSL path")?;
 
         let mut cmd = Command::new(vscode_exe);
+
+        let Ok(wsl_path) = wslpath::to_wsl(&args.path) else {
+            // If wslpath fails, we'll assume it's because the location isn't mounted in WSL and
+            // open it in a local VS Code instead.
+            //
+            // TODO: Offer to mount the drive / network share automatically (see #3)
+            cmd.arg(&args.path);
+            cmd.spawn().context("Failed to start VS Code")?;
+            return Ok(());
+        };
 
         // This is what the remote extension's wslCode.sh script calls it. The distro name can be
         // left empty, but then it appears as a different "recent folder" if you also do `code .`
