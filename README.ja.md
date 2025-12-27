@@ -36,7 +36,7 @@ WSL用のRust製クリップボード（xsel）とゴミ箱（recycle）とオ�
 または[ZIPをダウンロード](https://github.com/maxkagamine/wsl-tools/releases/latest/download/wsl-tools-portable.zip)、またはソースからコンパイル：
 
 1. [Rustをインストールして](https://rustup.rs/)（Windowsではなく、WSLで）
-2. [Inno Setup 6.4+をインストールして](https://jrsoftware.org/isdl.php)（任意）
+2. [Inno Setup 6.6+をインストールして](https://jrsoftware.org/isdl.php)（任意）
 3. クロスコンパイルのために準備して：
    - Ubuntu: `sudo apt-get install mingw-w64 && rustup target add x86_64-pc-windows-gnu`
    - Arch: `sudo pacman -Syu mingw-w64 && rustup target add x86_64-pc-windows-gnu`

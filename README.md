@@ -35,7 +35,7 @@ As a bonus, I've added two options to the installer (if you choose to use it):
 or [download zip](https://github.com/maxkagamine/wsl-tools/releases/latest/download/wsl-tools-portable.zip), or compile from source:
 
 1. [Install Rust](https://rustup.rs/) (in WSL, not Windows)
-2. [Install Inno Setup 6.4+](https://jrsoftware.org/isdl.php) (Optional)
+2. [Install Inno Setup 6.6+](https://jrsoftware.org/isdl.php) (Optional)
 3. Set up for cross-compilation:
    - Ubuntu: `sudo apt-get install mingw-w64 && rustup target add x86_64-pc-windows-gnu`
    - Arch: `sudo pacman -Syu mingw-w64 && rustup target add x86_64-pc-windows-gnu`

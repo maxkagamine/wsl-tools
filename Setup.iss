@@ -34,7 +34,7 @@ SolidCompression=yes
 UninstallFilesDir={app}\uninst
 VersionInfoProductTextVersion={#ProductVersion}
 VersionInfoVersion={#FileVersion}
-WizardStyle=classic
+WizardStyle=classic dynamic
 
 [Languages]
 Name: "en"; MessagesFile: "compiler:Default.isl"
