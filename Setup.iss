@@ -43,8 +43,8 @@ Name: "ja"; MessagesFile: "compiler:Languages\Japanese.isl"
 [CustomMessages]
 en.AddToPath=Add to PATH
 ja.AddToPath=PATHに追加する
-en.MakeOpenWithCodeOpenInWsl=Make "Open with Code" open in WSL
-ja.MakeOpenWithCodeOpenInWsl=「Code で開く」をWSLで開くようにする
+en.MakeVSCodeOpenInWsl=Make launching VS Code from Explorer open in WSL
+ja.MakeVSCodeOpenInWsl=エクスプローラーからVS Codeを起動する際にWSLで開くようにする
 en.AddRunToShFiles=Add "%1" to context menu of .sh files
 ja.AddRunToShFiles=.shファイルのコンテクストメニューに「%1」を追加する
 en.RunContextMenuText=Run
@@ -55,8 +55,8 @@ Source: "dist\wsl-tools\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdir
 
 [Tasks]
 Name: "AddToPath"; Description: "{cm:AddToPath}"
-Name: "MakeOpenWithCodeOpenInWsl"; Description: "{cm:MakeOpenWithCodeOpenInWsl}"; Flags: unchecked; Check: IsVSCodeInstalled
 Name: "AddRunToShFiles"; Description: "{cm:AddRunToShFiles,{cm:RunContextMenuText}}"; Flags: unchecked
+Name: "MakeVSCodeOpenInWsl"; Description: "{cm:MakeVSCodeOpenInWsl}"; Flags: unchecked; Check: IsVSCodeInstalled
 
 [Registry]
 #define SFA "SOFTWARE\Classes\SystemFileAssociations"
@@ -131,93 +131,117 @@ end;
 
 function IsVSCodeInstalled(): Boolean;
 begin
-  Result := (GetVSCodeExe() <> '') and RegKeyExists(HKEY_CLASSES_ROOT, '*\shell\VSCode\command');
+  Result := (GetVSCodeExe() <> '');
 end;
 
-function ShouldResetVSCodeRegistryKeys(): Boolean;
+{ Inno doesn't delete registry keys when a previously-selected task is deselected (only on uninstall), so "unchecking"
+  the task by moving it to Deselected Tasks will prevent updates from overwriting our hijack without deleting them }
+procedure ToggleVSCodeSetupTask(Task: String; Checked: Boolean);
 var
-  Command: String;
-begin
-  Result := RegQueryStringValue(HKEY_CLASSES_ROOT, '*\shell\VSCode\command', '', Command) and (Pos('code-wsl.exe', Command) > 0);
-end;
-
-procedure MoveSetupTaskForKey(Hive: Integer; Key, Task, FromValue, ToValue: String);
-var
+  Hive: Integer;
+  Key: String;
+  FromValue: String;
+  ToValue: String;
   FromTasks: String;
   ToTasks: String;
   P: Integer;
 begin
-  { Get both lists of tasks }
-  if (not RegQueryStringValue(Hive, Key, FromValue, FromTasks)) or
-     (not RegQueryStringValue(Hive, Key, ToValue, ToTasks)) then
-    exit;
+  if Checked then begin
+    FromValue := 'Inno Setup: Deselected Tasks';
+    ToValue := 'Inno Setup: Selected Tasks';
+  end else begin
+    FromValue := 'Inno Setup: Selected Tasks';
+    ToValue := 'Inno Setup: Deselected Tasks';
+  end;
+
+  { Find the registry key for VS Code's installer (the "User Installer" and "System Installer" are separate) }
+  Hive := HKEY_CURRENT_USER;
+  Key := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{771FD6B0-FA20-440A-A002-3B3BAC16DC50}_is1';
+  if not RegKeyExists(Hive, Key) then
+  begin
+    Hive := HKEY_LOCAL_MACHINE;
+    Key := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{EA457B21-F73E-494C-ACAB-524FDE069978}_is1';
+    if not RegKeyExists(Hive, Key) then
+      exit;
+  end;
 
   { Remove the task from the "from" list }
+  RegQueryStringValue(Hive, Key, FromValue, FromTasks);
   P := Pos(',' + Uppercase(Task) + ',', ',' + Uppercase(FromTasks) + ',');
   if P > 0 then
   begin
-    Delete(FromTasks, Max(1, P - 1), Length(Task) + 1)
-    if not RegWriteStringValue(Hive, Key, FromValue, FromTasks) then
-      RaiseException('Could not write to ' + Key + '\' + FromValue);
+    Delete(FromTasks, Max(1, P - 1), Length(Task) + 1);
+    RegWriteStringValue(Hive, Key, FromValue, FromTasks);
   end;
 
   { Add the task to the "to" list }
+  RegQueryStringValue(Hive, Key, ToValue, ToTasks);
   if Pos(',' + Uppercase(Task) + ',', ',' + Uppercase(ToTasks) + ',') = 0 then
   begin
-    ToTasks := ToTasks + ',' + Task
-    if not RegWriteStringValue(Hive, Key, ToValue, ToTasks) then
-      RaiseException('Could not write to ' + Key + '\' + ToValue);
+    ToTasks := ToTasks + ',' + Task;
+    RegWriteStringValue(Hive, Key, ToValue, ToTasks);
   end;
 end;
 
-procedure MoveSetupTask(Task, FromValue, ToValue: String);
-begin
-  { VS Code User Installer }
-  MoveSetupTaskForKey(
-    HKEY_CURRENT_USER, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{771FD6B0-FA20-440A-A002-3B3BAC16DC50}_is1',
-    Task, FromValue, ToValue);
-
-  { VS Code System Installer }
-  MoveSetupTaskForKey(
-    HKEY_LOCAL_MACHINE, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{EA457B21-F73E-494C-ACAB-524FDE069978}_is1',
-    Task, FromValue, ToValue);
-end;
-
+{ https://github.com/microsoft/vscode/blob/1debf21160174ecaf114e8e043146da08ba25d4a/build/win32/code.iss }
 procedure UpdateVSCodeRegistryKeys();
 var
   Exe: String;
+  Enabling: Boolean;
+  Keys: array of String;
+  I: Integer;
 begin
   { Bail if VS Code isn't installed }
   if not IsVSCodeInstalled() then
     exit;
 
-  { Decide if we're replacing Code.exe with our binary, setting it back to the original, or leaving it as is }
-  if (IsUninstaller() or not WizardIsTaskSelected('MakeOpenWithCodeOpenInWsl')) and ShouldResetVSCodeRegistryKeys() then
+  { Decide if we're enabling our registry hijack or reverting it }
+  if (IsUninstaller() and WizardIsTaskSelected('MakeVSCodeOpenInWsl')) or
+     not WizardIsTaskSelected('MakeVSCodeOpenInWsl') then
   begin
     Exe := GetVSCodeExe();
-    MoveSetupTask('addcontextmenufiles', 'Inno Setup: Deselected Tasks', 'Inno Setup: Selected Tasks');
-    MoveSetupTask('addcontextmenufolders', 'Inno Setup: Deselected Tasks', 'Inno Setup: Selected Tasks')
+    Enabling := False;
   end
-  else if WizardIsTaskSelected('MakeOpenWithCodeOpenInWsl') then
+  else if WizardIsTaskSelected('MakeVSCodeOpenInWsl') then
   begin
     Exe := ExpandConstant('{app}\code-wsl.exe');
-    MoveSetupTask('addcontextmenufiles', 'Inno Setup: Selected Tasks', 'Inno Setup: Deselected Tasks');
-    MoveSetupTask('addcontextmenufolders', 'Inno Setup: Selected Tasks', 'Inno Setup: Deselected Tasks')
+    Enabling := True;
   end
   else
     exit;
 
-  { Update all the things }
-  { https://github.com/microsoft/vscode/blob/50b5aa895467bcc17c91c9d2357f670969d4da3d/build/win32/code.iss#L1270C1-L1280C1 }
-  RegWriteExpandStringValue(HKEY_CLASSES_ROOT, '*\shell\VSCode\command', '', '"' + Exe + '" "%1"');
-  RegWriteExpandStringValue(HKEY_CLASSES_ROOT, 'Directory\shell\VSCode\command', '', '"' + Exe + '" "%V"');
-  RegWriteExpandStringValue(HKEY_CLASSES_ROOT, 'Directory\Background\shell\VSCode\command', '', '"' + Exe + '" "%V"');
-  RegWriteExpandStringValue(HKEY_CLASSES_ROOT, 'Drive\shell\VSCode\command', '', '"' + Exe + '" "%V"');
+  { File context menu }
+  if RegKeyExists(HKEY_CLASSES_ROOT, '*\shell\VSCode\command') then
+  begin
+    ToggleVSCodeSetupTask('addcontextmenufiles', not Enabling);
+    RegWriteExpandStringValue(HKEY_CLASSES_ROOT, '*\shell\VSCode\command', '', '"' + Exe + '" "%1"');
+  end;
 
-  { "Open with Code" doesn't normally show up when right-clicking the background of a Library, but I added it myself }
-  { since the Libraries feature is useful for combining a Projects folder in WSL with a separate one in Windows }
-  if RegKeyExists(HKEY_CLASSES_ROOT, 'LibraryFolder\Background\shell\VSCode\command') then
-    RegWriteExpandStringValue(HKEY_CLASSES_ROOT, 'LibraryFolder\Background\shell\VSCode\command', '', '"' + Exe + '" "%V"');
+  { Folder context menu }
+  if RegKeyExists(HKEY_CLASSES_ROOT, 'Directory\shell\VSCode\command') then
+  begin
+    ToggleVSCodeSetupTask('addcontextmenufolders', not Enabling);
+    RegWriteExpandStringValue(HKEY_CLASSES_ROOT, 'Directory\shell\VSCode\command', '', '"' + Exe + '" "%V"');
+    RegWriteExpandStringValue(HKEY_CLASSES_ROOT, 'Directory\Background\shell\VSCode\command', '', '"' + Exe + '" "%V"');
+    RegWriteExpandStringValue(HKEY_CLASSES_ROOT, 'Drive\shell\VSCode\command', '', '"' + Exe + '" "%V"');
+    { This last one isn't added by VS Code's installer; I added it myself since the libraries feature is handy for
+      combining a Projects folder in WSL with one Windows-side. This has no effect unless you've done the same. }
+    if RegKeyExists(HKEY_CLASSES_ROOT, 'LibraryFolder\Background\shell\VSCode\command') then
+      RegWriteExpandStringValue(HKEY_CLASSES_ROOT, 'LibraryFolder\Background\shell\VSCode\command', '', '"' + Exe + '" "%V"');
+  end;
+
+  { File associations }
+  if RegKeyExists(HKEY_CLASSES_ROOT, 'VSCode.txt') then
+  begin
+    ToggleVSCodeSetupTask('associatewithfiles', not Enabling);
+    RegGetSubkeyNames(HKEY_CLASSES_ROOT, '', Keys);
+    for I := 0 to GetArrayLength(Keys) - 1 do
+    begin
+      if Pos('VSCode.', Keys[I]) <> 1 then
+        continue;
+      RegWriteExpandStringValue(HKEY_CLASSES_ROOT, Keys[I] + '\shell\open\command', '', '"' + Exe + '" "%1"');
+    end;
+  end;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
