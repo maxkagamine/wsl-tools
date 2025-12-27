@@ -68,6 +68,14 @@ Root: HKLM; Subkey: "{#SFA}\.sh\shell\run-in-wsl\command"; ValueType: string; Va
 [Code]
 const EnvironmentKey = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
 
+function Max(A, B: Integer): Integer;
+begin
+  if A > B then
+    Result := A
+  else
+    Result := B;
+end;
+
 procedure AddToPath(PathToAdd: string);
 var
   PathArray: string;
@@ -101,7 +109,7 @@ begin
     exit;
 
   { Update PATH }
-  Delete(PathArray, P - 1, Length(PathToRemove) + 1)
+  Delete(PathArray, Max(1, P - 1), Length(PathToRemove) + 1)
   if not RegWriteStringValue(HKEY_LOCAL_MACHINE, EnvironmentKey, 'Path', PathArray) then
     RaiseException('Could not write to HKEY_LOCAL_MACHINE\' + EnvironmentKey);
 end;
@@ -133,6 +141,48 @@ begin
   Result := RegQueryStringValue(HKEY_CLASSES_ROOT, '*\shell\VSCode\command', '', Command) and (Pos('code-wsl.exe', Command) > 0);
 end;
 
+procedure MoveSetupTaskForKey(Hive: Integer; Key, Task, FromValue, ToValue: String);
+var
+  FromTasks: String;
+  ToTasks: String;
+  P: Integer;
+begin
+  { Get both lists of tasks }
+  if (not RegQueryStringValue(Hive, Key, FromValue, FromTasks)) or
+     (not RegQueryStringValue(Hive, Key, ToValue, ToTasks)) then
+    exit;
+
+  { Remove the task from the "from" list }
+  P := Pos(',' + Uppercase(Task) + ',', ',' + Uppercase(FromTasks) + ',');
+  if P > 0 then
+  begin
+    Delete(FromTasks, Max(1, P - 1), Length(Task) + 1)
+    if not RegWriteStringValue(Hive, Key, FromValue, FromTasks) then
+      RaiseException('Could not write to ' + Key + '\' + FromValue);
+  end;
+
+  { Add the task to the "to" list }
+  if Pos(',' + Uppercase(Task) + ',', ',' + Uppercase(ToTasks) + ',') = 0 then
+  begin
+    ToTasks := ToTasks + ',' + Task
+    if not RegWriteStringValue(Hive, Key, ToValue, ToTasks) then
+      RaiseException('Could not write to ' + Key + '\' + ToValue);
+  end;
+end;
+
+procedure MoveSetupTask(Task, FromValue, ToValue: String);
+begin
+  { VS Code User Installer }
+  MoveSetupTaskForKey(
+    HKEY_CURRENT_USER, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{771FD6B0-FA20-440A-A002-3B3BAC16DC50}_is1',
+    Task, FromValue, ToValue);
+
+  { VS Code System Installer }
+  MoveSetupTaskForKey(
+    HKEY_LOCAL_MACHINE, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{EA457B21-F73E-494C-ACAB-524FDE069978}_is1',
+    Task, FromValue, ToValue);
+end;
+
 procedure UpdateVSCodeRegistryKeys();
 var
   Exe: String;
@@ -143,9 +193,17 @@ begin
 
   { Decide if we're replacing Code.exe with our binary, setting it back to the original, or leaving it as is }
   if (IsUninstaller() or not WizardIsTaskSelected('MakeOpenWithCodeOpenInWsl')) and ShouldResetVSCodeRegistryKeys() then
-    Exe := GetVSCodeExe()
+  begin
+    Exe := GetVSCodeExe();
+    MoveSetupTask('addcontextmenufiles', 'Inno Setup: Deselected Tasks', 'Inno Setup: Selected Tasks');
+    MoveSetupTask('addcontextmenufolders', 'Inno Setup: Deselected Tasks', 'Inno Setup: Selected Tasks')
+  end
   else if WizardIsTaskSelected('MakeOpenWithCodeOpenInWsl') then
-    Exe := ExpandConstant('{app}\code-wsl.exe')
+  begin
+    Exe := ExpandConstant('{app}\code-wsl.exe');
+    MoveSetupTask('addcontextmenufiles', 'Inno Setup: Selected Tasks', 'Inno Setup: Deselected Tasks');
+    MoveSetupTask('addcontextmenufolders', 'Inno Setup: Selected Tasks', 'Inno Setup: Deselected Tasks')
+  end
   else
     exit;
 
