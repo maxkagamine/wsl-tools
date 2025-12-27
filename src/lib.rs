@@ -6,6 +6,7 @@ pub mod macros;
 pub mod message_box;
 pub mod process;
 pub mod recycle_bin;
+pub mod vscode;
 pub mod wslpath;
 
 mod hglobal;

@@ -38,11 +38,11 @@ impl<T> Drop for GlobalMemory<'_, T> {
 }
 
 pub trait Lock {
-    fn lock<T>(&self) -> Result<GlobalMemory<T>>;
+    fn lock<T>(&self) -> Result<GlobalMemory<'_, T>>;
 }
 
 impl Lock for HGLOBAL {
-    fn lock<T>(&self) -> Result<GlobalMemory<T>> {
+    fn lock<T>(&self) -> Result<GlobalMemory<'_, T>> {
         let ptr = unsafe { GlobalLock(*self).cast::<T>() };
         if ptr.is_null() {
             Err(Error::new(Win32Error::from_win32()).context("GlobalLock"))
