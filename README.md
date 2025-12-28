@@ -21,7 +21,7 @@ The programs come with both Linux and Windows binaries: the former is used to tr
 
 As a bonus, I've added two options to the installer (if you choose to use it):
 
-1. Make "<img src="https://code.visualstudio.com/assets/apple-touch-icon.png" height="16" align="center" /> Open with Code" in Explorer's context menu always open in WSL. This uses [another small binary](src/bin/code-wsl.rs) to do the path translation and launch VSCode in order to avoid the console flash / quoting issues seen [here](https://stackoverflow.com/questions/59336461/how-to-open-vscode-remote-wsl-by-right-click).
+1. Make launching VS Code from Explorer (either by double-clicking a file or "<img src="https://code.visualstudio.com/assets/apple-touch-icon.png" height="16" align="center" /> Open with Code" in the context menu) open in WSL. This uses a [small program](src/bin/code-wsl.rs) to do the path translation and launch VS Code the same way the `code` shell script does in WSL.
 
 2. Add "Run" to the context menu of .sh files. Similarly uses a [helper program](src/bin/run-in-wsl.rs) to run wsl.exe, making sure the environment is the same as if you had run the script from a terminal while simultaneously avoiding quoting issues and respecting the shebang. _(Note: You can prevent Windows Terminal from closing automatically by changing Settings → Defaults → Advanced → Profile termination behavior.)_
 
