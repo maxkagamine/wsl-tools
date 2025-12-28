@@ -23,7 +23,9 @@ macro_rules! exe_command {
                 .arg("--");
             cmd
         } else {
-            std::process::Command::new(concat!(env!("CARGO_BIN_NAME"), ".exe"))
+            let mut exe = std::env::current_exe().unwrap();
+            exe.add_extension("exe");
+            std::process::Command::new(exe)
         }
     };
 }
