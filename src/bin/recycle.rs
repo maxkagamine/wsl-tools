@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 
 use clap::Parser;
+use std::fs;
 
 #[derive(Parser)]
 #[command(
@@ -26,7 +27,10 @@ https://github.com/maxkagamine/wsl-tools"),
 {about-section}
 {all-args}",
     max_term_width = 80,
+    next_line_help = true,
 )]
+#[allow(clippy::struct_excessive_bools)]
+#[rustfmt::skip]
 struct Args {
     // IMPORTANT! Any new args added here MUST be replicated in the Linux main() below. (Clap
     // doesn't give us a way to stringify args.)
@@ -39,26 +43,30 @@ struct Args {
     })]
     paths: Vec<String>,
 
-    /// Ignore nonexistent files.
-    #[arg(short, long)]
+    #[arg(short, long, help = "Ignore nonexistent files.")]
     force: bool,
 
     #[arg(long, help = if cfg!(unix) {
         "Hide all dialogs and let the shell permanently delete anything it can't recycle. \
-        Directories will be deleted recursively. Files in the WSL filesystem will be deleted \
-        Linux-side. Warning: this may result in files that could have been recycled being nuked \
-        instead; see comment in `recycle_bin.rs` for details."
+        Directories will produce an error unless --recursive. Files in the WSL filesystem will be \
+        deleted Linux-side.\n\nWarning: this may result in files that could have been recycled \
+         beingnuked instead; see comment in `recycle_bin.rs` for details."
     } else {
         "Hide all dialogs and let the shell permanently delete anything it can't recycle. \
-        Directories will be deleted recursively. Note that files in the WSL filesystem which \
-        require sudo cannot be deleted with `recycle.exe` (Explorer won't do it). Warning: this \
-        may result in files that could have been recycled being nuked instead; see comment in \
-        `recycle_bin.rs` for details."
+        Directories will produce an error unless --recursive. Note that files in the WSL \
+        filesystem which require sudo cannot be deleted with `recycle.exe` (Explorer won't do \
+        it).\n\nWarning: this may result in files that could have been recycled being nuked \
+        instead; see comment in `recycle_bin.rs` for details."
     })]
     rm: bool,
 
-    /// Show recycle progress in the terminal.
-    #[arg(short, long)]
+    // Clap can't show aliases on the same line: https://github.com/clap-rs/clap/issues/5459
+    #[arg(short, short_alias = 'R', long, help = "\
+        Allow recycling and deleting directories when --rm is used. No effect without --rm (the \
+        shell will display a dialog instead).")]
+    recursive: bool,
+
+    #[arg(short, long, help = "Show recycle progress in the terminal.")]
     verbose: bool,
 }
 
@@ -79,6 +87,16 @@ fn main() {
 
     if args.rm {
         options |= RECYCLE_DANGEROUSLY_IN_BACKGROUND;
+
+        // Make sure we won't be deleting any directories if not --recursive
+        if !args.recursive {
+            for path in &args.paths {
+                if fs::metadata(path).is_ok_and(|m| m.is_dir()) {
+                    eprintln!("recycle: Cannot remove \"{path}\": Is a directory.");
+                    std::process::exit(1);
+                }
+            }
+        }
     }
 
     let mut errored = false;
@@ -108,12 +126,7 @@ fn main() {
 
 #[cfg(unix)]
 fn main() {
-    use std::{
-        cell::LazyCell,
-        fs::{self, Metadata},
-        io::ErrorKind,
-        os::linux::fs::MetadataExt,
-    };
+    use std::{cell::LazyCell, fs::Metadata, io::ErrorKind, os::linux::fs::MetadataExt};
     use wsl_tools::{exe_command, exe_exec, wslpath};
 
     let args = Args::parse();
@@ -126,6 +139,10 @@ fn main() {
 
     if args.rm {
         cmd.arg("--rm");
+    }
+
+    if args.recursive {
+        cmd.arg("--recursive");
     }
 
     if args.verbose {
@@ -174,6 +191,10 @@ fn main() {
                     }
 
                     let result = if stat.is_dir() {
+                        if !args.recursive {
+                            eprintln!("recycle: Cannot remove \"{path}\": Is a directory.");
+                            std::process::exit(1);
+                        }
                         fs::remove_dir_all(&path)
                     } else {
                         fs::remove_file(&path)

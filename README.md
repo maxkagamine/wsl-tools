@@ -110,10 +110,10 @@ Sends the given files/directories to the Recycle Bin.
 
 The default behavior (without --rm) is to let the shell display the normal
 progress and confirmation dialogs and add to Explorer's undo history, the same
-as if the user had deleted the files in Explorer. This is due to Windows API
-limitations: it is not possible to recycle files without any dialogs without
-also risking the shell permanently deleting files. Consequently, this command
-MUST NOT be used without --rm in scripts where the user is not expecting it.
+as if the user had deleted the files from Explorer. This is due to Windows API
+limitations: it is not possible to recycle without any dialogs without also
+risking the shell permanently deleting files. Consequently, this command MUST
+NOT be used without --rm in scripts where the user is not expecting it.
 
 Arguments:
   <PATHS>...
@@ -122,28 +122,24 @@ Arguments:
 
 Options:
   -f, --force
-          Ignore nonexistent files
-
+          Ignore nonexistent files.
       --rm
           Hide all dialogs and let the shell permanently delete anything it
-          can't recycle. Warnings:
-
-          • This may result in files that could have been recycled being nuked
-          instead; see comment in `recycle_bin.rs` for details.
-
-          • Directories will be deleted recursively.
-
-          • Files in the WSL filesystem that require sudo cannot be deleted with
-          `recycle` (Explorer won't do it).
-
+          can't recycle. Directories will produce an error unless --recursive.
+          Files in the WSL filesystem will be deleted Linux-side.
+          
+          Warning: this may result in files that could have been recycled
+          beingnuked instead; see comment in `recycle_bin.rs` for details.
+  -r, --recursive
+          Allow recycling and deleting directories when --rm is used. No effect
+          without --rm (the shell will display a dialog instead).
   -v, --verbose
-          Show recycle progress in the terminal
-
+          Show recycle progress in the terminal.
   -h, --help
-          Print help (see a summary with '-h')
-
+          Print help
   -V, --version
           Print version
+
 ```
 
 ## open
