@@ -98,10 +98,23 @@ Miscellaneous options
 
 ## recycle
 
-See [remarks in source](src/recycle_bin.rs).
+Recycles files & directories either interactively (as though deleted from Explorer) or as a replacement for `rm` (attempt recycle, nuke otherwise). See the [remarks in source](src/recycle_bin.rs) for details.
+
+> [!TIP]
+> You can alias `rm` to `recycle` in your .bashrc or similar to avoid accidentally deleting things in locations where recycling is possible:
+> ```bash
+> alias rm='recycle --rm'
+> ```
+> Shell scripts won't see the alias and should be modified to use `recycle --rm` if desired; for example:
+> ```bash
+> if command -v recycle &>/dev/null; then
+>   rm() { recycle --rm "$@"; }
+> fi
+> ```
+> Note that the `-i`/`-I` and `-d` options from [`rm`](https://linux.die.net/man/1/rm) are not currently implemented here.
 
 > [!NOTE]
-> If you get an "Element not found." error when trying to recycle files in the WSL filesystem, try `wsl.exe --update` and/or restarting. This appears to be a problem with Windows and \\\\wsl.localhost paths, but the cause is unknown ([microsoft/WSL#12444](https://github.com/microsoft/WSL/issues/12444), [microsoft/WSL#11252](https://github.com/microsoft/WSL/issues/11252)).
+> If you get an "Element not found." error when trying to recycle files in the WSL filesystem, try `wsl.exe --update` and/or restarting. This appears to be a bug in WSL ([microsoft/WSL#12444](https://github.com/microsoft/WSL/issues/12444), [microsoft/WSL#11252](https://github.com/microsoft/WSL/issues/11252)).
 
 ```
 Usage: recycle [OPTIONS] <PATHS>...

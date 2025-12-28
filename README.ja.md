@@ -97,12 +97,23 @@ Xオプション
 
 ## recycle
 
-[ソースで注釈](src/recycle_bin.rs)を参照してください。
+ファイルとディレクトリをインタラクティブに（エクスプローラから削除したかのように）ごみ箱に移動するか、または`rm`コマンドの代替として処理する（ごみ箱への移動を試行し、失敗した場合は完全に削除する）。Windowsのごみ箱が英語で「Recycle Bin」と呼ばれているため、この名前を付けました。詳しくは[ソースで注釈](src/recycle_bin.rs)を参照してください。
 
-Windowsのごみ箱が英語で「Recycle Bin」と呼ばれているため、この名前を付けました。
+> [!TIP]
+> ごみ箱のある場所でのファイルを誤って削除しないように、.bashrcなどで`rm`を`recycle`にエイリアスできます：
+> ```bash
+> alias rm='recycle --rm'
+> ```
+> シェルスクリプトはこのエイリアスを認識しないので、必要に応じて`recycle --rm`を使用するように修正する必要があります。例えば：
+> ```bash
+> if command -v recycle &>/dev/null; then
+>   rm() { recycle --rm "$@"; }
+> fi
+> ```
+> なお、[`rm`](https://linux.die.net/man/1/rm)の`-i`/`-I`と`-d`オプションは現在ここで実装されていません。
 
 > [!NOTE]
-> WSLファイルシステム上のファイルをごみ箱に移動してみる時に「Element not found.」というエラーが出る場合は、`wsl.exe --update`を実行、および/または再起動してみてください。これは\\\\wsl.localhostパスに関するWindowsのバグのようですが、原因は不明です（[microsoft/WSL#12444](https://github.com/microsoft/WSL/issues/12444), [microsoft/WSL#11252](https://github.com/microsoft/WSL/issues/11252)）。
+> WSLファイルシステム上のファイルをごみ箱に移動してみる時に「Element not found.」というエラーが出る場合は、`wsl.exe --update`を実行、および/または再起動してみてください。これはWSLのバグのようです（[microsoft/WSL#12444](https://github.com/microsoft/WSL/issues/12444), [microsoft/WSL#11252](https://github.com/microsoft/WSL/issues/11252)）。
 
 ```
 使い方: recycle [オプション] <パス>...
