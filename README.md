@@ -98,7 +98,7 @@ Miscellaneous options
 
 ## recycle
 
-Recycles files & directories either interactively (as though deleted from Explorer) or as a replacement for `rm` (attempt recycle, nuke otherwise). See the [remarks in source](src/recycle_bin.rs) for details.
+Recycles files & directories either interactively (as though deleted from Explorer) or as a replacement for `rm` (attempt recycle, nuke otherwise). See the [remarks in source](src/recycle_bin.rs) for details. [Benchmark here.](https://github.com/maxkagamine/wsl-tools/releases/tag/v1.4.0)
 
 > [!TIP]
 > You can alias `rm` to `recycle` in your .bashrc or similar to avoid accidentally deleting things in locations where recycling is possible:
