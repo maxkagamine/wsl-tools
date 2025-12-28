@@ -57,13 +57,12 @@ impl IFileOperationProgressSink_Impl for RecycleProgressSink_Impl<'_> {
         });
 
         let error = if hrdelete.is_ok() {
-            if fs::exists(&path).unwrap_or_default() {
-                // File still exists even after being deleted. This can happen when trying to
-                // recycle a file on the WSL filesystem owned by root (Windows won't allow it).
-                Some(RecycleError::Unknown)
-            } else {
-                None
-            }
+            // Note: PostDeleteItem is sometimes called *before* the item is actually deleted, so
+            // checking here to see if the file was actually deleted or not will not work. We'll
+            // assume it's ok, as that's an edge case, but we need to double-check after calling
+            // PerformOperations, even if GetAnyOperationsAborted returns false. IFileOperation is a
+            // buggy mess. See https://github.com/maxkagamine/wsl-tools/issues/5.
+            None
         } else if hrdelete == COPYENGINE_E_ACCESS_DENIED_SRC {
             Some(RecycleError::AccessDenied)
         } else if hrdelete == COPYENGINE_E_SHARING_VIOLATION_SRC {

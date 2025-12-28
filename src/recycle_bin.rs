@@ -5,7 +5,7 @@
 
 pub use crate::recycle_error::RecycleError;
 use crate::recycle_progress_sink::RecycleProgressSink;
-use std::os::windows::ffi::OsStrExt;
+use std::{fs, os::windows::ffi::OsStrExt};
 use windows::{
     Win32::{
         Foundation::{ERROR_CANCELLED, ERROR_FILE_NOT_FOUND},
@@ -225,7 +225,7 @@ where
             op.SetOperationFlags(FOFX_ADDUNDORECORD | FOFX_RECYCLEONDELETE)?;
         }
 
-        let mut any_to_recycle = false;
+        let mut paths_queued_for_deletion: Vec<String> = Vec::new();
 
         for path in paths {
             // Resolve relative paths and convert to a null-terminated UTF-16 string.
@@ -257,12 +257,12 @@ where
             // [0]: https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifileoperation-copyitem#examples
             // [1]: https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/Win7Samples/winui/shell/appplatform/FileOperationProgressSink/ProgressSinkSampleApp.cpp#L435
             op.DeleteItem(&item, None)?;
-            any_to_recycle = true;
+            paths_queued_for_deletion.push(rel_path.to_owned());
         }
 
         // Bail if there's nothing to recycle (empty paths or all nonexistent and ignored), as
         // PerformOperations will throw a "Catastrophic failure" if the operation is empty.
-        if !any_to_recycle {
+        if paths_queued_for_deletion.is_empty() {
             return Ok(());
         }
 
@@ -284,6 +284,16 @@ where
         // PostDeleteItem hook in IFileOperationProgressSink.
         if op.GetAnyOperationsAborted()?.as_bool() {
             return Err(RecycleError::Canceled);
+        }
+
+        // Unfortunately, we're not done, because IFileOperation will sometimes return OK despite
+        // not actually doing anything. This can happen when the file is in WSL and the default user
+        // doesn't have permission to delete it (e.g. directory owned by root). We can't rely on
+        // PostDeleteItem for this, either; see https://github.com/maxkagamine/wsl-tools/issues/5.
+        for path in paths_queued_for_deletion {
+            if fs::exists(&path).unwrap_or_default() {
+                return Err(RecycleError::Unknown);
+            }
         }
 
         Ok(())
