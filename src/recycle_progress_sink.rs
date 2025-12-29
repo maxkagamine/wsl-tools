@@ -66,7 +66,7 @@ impl IFileOperationProgressSink_Impl for RecycleProgressSink_Impl<'_> {
         } else if hrdelete == COPYENGINE_E_ACCESS_DENIED_SRC {
             Some(RecycleError::AccessDenied)
         } else if hrdelete == COPYENGINE_E_SHARING_VIOLATION_SRC {
-            if fs::metadata(&path).is_ok_and(|m| m.is_dir()) {
+            if fs::symlink_metadata(&path).is_ok_and(|m| m.is_dir()) {
                 Some(RecycleError::FolderInUse)
             } else {
                 Some(RecycleError::FileInUse)

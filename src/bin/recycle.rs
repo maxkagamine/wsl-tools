@@ -91,7 +91,8 @@ fn main() {
         // Make sure we won't be deleting any directories if not --recursive
         if !args.recursive {
             for path in &args.paths {
-                if fs::metadata(path).is_ok_and(|m| m.is_dir()) {
+                // Don't follow symlinks
+                if fs::symlink_metadata(path).is_ok_and(|m| m.is_dir()) {
                     eprintln!("recycle: Cannot remove \"{path}\": Is a directory.");
                     std::process::exit(1);
                 }
@@ -149,7 +150,7 @@ fn main() {
         cmd.arg("--verbose");
     }
 
-    let root_dev_inode: LazyCell<Metadata> = LazyCell::new(|| fs::metadata("/").unwrap());
+    let root_dev_inode: LazyCell<Metadata> = LazyCell::new(|| fs::symlink_metadata("/").unwrap());
     let mut any_to_recycle = false;
 
     if !args.paths.is_empty() {
@@ -160,8 +161,10 @@ fn main() {
             match wslpath::to_windows(&path) {
                 Ok(x) if args.rm && x.starts_with(r"\\wsl.localhost\") => {
                     // For paths in the WSL filesystem, we can unlink them here. If --rm wasn't
-                    // given, we'll skip this so that the shell can display a dialog.
-                    let stat = match fs::metadata(&path) {
+                    // given, we'll skip this so that the shell can display a dialog. Note that we
+                    // use symlink_metadata (lstat) here instead of metadata (stat) to be consistent
+                    // with `rm` and not follow symlinks (even if --recursive).
+                    let stat = match fs::symlink_metadata(&path) {
                         Ok(m) => m,
                         Err(err) if err.kind() == ErrorKind::NotFound => {
                             if args.force {
@@ -206,7 +209,10 @@ fn main() {
                                 println!("recycle: Removed \"{path}\"");
                             }
                         }
-                        Err(err) if err.kind() == ErrorKind::NotFound && !args.force => {
+                        Err(err) if err.kind() == ErrorKind::NotFound => {
+                            if args.force {
+                                continue;
+                            }
                             eprintln!(
                                 "recycle: Failed to delete \"{path}\": No such file or directory."
                             );
