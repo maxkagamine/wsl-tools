@@ -1,8 +1,8 @@
 {
-  "rust-analyzer.cargo.target": "x86_64-pc-windows-gnu",
-  "rust-analyzer.runnables.extraArgs": ["--target", "x86_64-pc-windows-gnu"],
-  // "rust-analyzer.cargo.target": "x86_64-unknown-linux-gnu",
-  // "rust-analyzer.runnables.extraArgs": ["--target", "x86_64-unknown-linux-gnu"],
+  // "rust-analyzer.cargo.target": "x86_64-pc-windows-gnu",
+  // "rust-analyzer.runnables.extraArgs": ["--target", "x86_64-pc-windows-gnu"],
+  "rust-analyzer.cargo.target": "x86_64-unknown-linux-gnu",
+  "rust-analyzer.runnables.extraArgs": ["--target", "x86_64-unknown-linux-gnu"],
 
   "editor.formatOnSave": true,
   "rust-analyzer.check.command": "clippy",

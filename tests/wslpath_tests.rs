@@ -51,3 +51,37 @@ fn windows_to_wsl() {
     let path = wslpath::to_wsl(format!("\\\\wsl.localhost\\{}\\home", get_distro_name())).unwrap();
     assert_eq!(path, "/home");
 }
+
+#[test]
+#[cfg(unix)]
+fn symlink_wsl_to_windows() -> Result<(), Box<dyn std::error::Error>> {
+    use std::{fs, os::unix::fs::symlink};
+
+    let temp_dir = env::temp_dir();
+    let subdir = temp_dir.join("symlink_wsl_to_windows");
+    let subdir_symlink = subdir.join("symlink");
+    let symlink_in_symlink = subdir_symlink.join("symlink");
+
+    let _ = fs::remove_dir_all(&subdir);
+    fs::create_dir(&subdir)?;
+    symlink(&subdir, &subdir_symlink)?;
+
+    let expected_windows_subdir = wslpath::to_windows(&subdir)?;
+    let expected_windows_subdir_symlink = format!("{expected_windows_subdir}\\symlink");
+
+    // Sanity check: Just calling wslpath -w will resolve all symlinks
+    let actual_windows_subdir = wslpath::to_windows(&symlink_in_symlink)?;
+    assert_eq!(actual_windows_subdir, expected_windows_subdir);
+
+    // Using symlink_to_windows should give us a path to the symlink itself, albeit with the
+    // directory path resolved
+    let actual_windows_subdir_symlink = wslpath::symlink_to_windows(&symlink_in_symlink)?;
+    assert_eq!(
+        actual_windows_subdir_symlink,
+        expected_windows_subdir_symlink
+    );
+
+    // Cleanup
+    fs::remove_dir_all(&subdir)?;
+    Ok(())
+}

@@ -156,9 +156,12 @@ fn main() {
     if !args.paths.is_empty() {
         cmd.arg("--");
 
-        // Convert WSL paths to Windows paths
+        // Convert WSL paths to Windows paths. The `symlink_to_windows` function runs wslpath on the
+        // dirname and then appends the basename, as wslpath resolves symlinks when converting from
+        // WSL to Windows paths (this is hardcoded in the source and unfortunately can't be
+        // overridden: https://github.com/microsoft/WSL/blob/2.7.0/src/linux/init/wslpath.cpp#L428).
         for path in args.paths {
-            match wslpath::to_windows(&path) {
+            match wslpath::symlink_to_windows(&path) {
                 Ok(x) if args.rm && x.starts_with(r"\\wsl.localhost\") => {
                     // For paths in the WSL filesystem, we can unlink them here. If --rm wasn't
                     // given, we'll skip this so that the shell can display a dialog. Note that we
