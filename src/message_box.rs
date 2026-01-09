@@ -8,31 +8,33 @@
 // final exe unless the bin module references the lib in some way.
 
 use windows::{
-    Win32::UI::WindowsAndMessaging::{MB_OK, MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MessageBoxW},
+    Win32::UI::WindowsAndMessaging::{
+        MB_ICONERROR, MB_OK, MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MessageBoxW,
+    },
     core::PCWSTR,
 };
 
+/// Shows a message box.
+///
+/// `caption` defaults to the package name if None; `style` defaults to `MB_OK | MB_ICONERROR`.
 pub fn show(
     text: impl AsRef<str>,
-    caption: Option<impl AsRef<str>>,
+    caption: Option<&str>,
     style: Option<MESSAGEBOX_STYLE>,
 ) -> MESSAGEBOX_RESULT {
     unsafe {
-        let mut text_utf16 = encode_utf16(text);
-        let mut caption_utf16 = caption.map(encode_utf16);
+        let mut text_utf16 = encode_utf16(text.as_ref());
+        let mut caption_utf16 = encode_utf16(caption.unwrap_or(env!("CARGO_PKG_NAME")));
 
         MessageBoxW(
             None,
             PCWSTR::from_raw(text_utf16.as_mut_ptr()),
-            match caption_utf16.as_mut() {
-                Some(x) => PCWSTR::from_raw(x.as_mut_ptr()),
-                None => PCWSTR::null(),
-            },
-            style.unwrap_or(MB_OK),
+            PCWSTR::from_raw(caption_utf16.as_mut_ptr()),
+            style.unwrap_or(MB_OK | MB_ICONERROR),
         )
     }
 }
 
-fn encode_utf16(str: impl AsRef<str>) -> Vec<u16> {
-    str.as_ref().encode_utf16().chain(Some(0)).collect()
+fn encode_utf16(str: &str) -> Vec<u16> {
+    str.encode_utf16().chain(Some(0)).collect()
 }

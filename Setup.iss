@@ -30,6 +30,7 @@ LicenseFile=LICENSE.txt
 MinVersion=6.2
 OutputBaseFilename=wsl-tools-installer
 OutputDir=dist
+ShowLanguageDialog=auto
 SolidCompression=yes
 UninstallFilesDir={app}\uninst
 VersionInfoProductTextVersion={#ProductVersion}
@@ -64,6 +65,9 @@ Root: HKLM; Subkey: "{#SFA}\.sh"; Flags: uninsdeletekeyifempty; Tasks: AddRunToS
 Root: HKLM; Subkey: "{#SFA}\.sh\shell"; Flags: uninsdeletekeyifempty; Tasks: AddRunToShFiles
 Root: HKLM; Subkey: "{#SFA}\.sh\shell\run-in-wsl"; ValueType: string; ValueName: ""; ValueData: "{cm:RunContextMenuText}"; Flags: uninsdeletekey; Tasks: AddRunToShFiles
 Root: HKLM; Subkey: "{#SFA}\.sh\shell\run-in-wsl\command"; ValueType: string; ValueName: ""; ValueData: """{app}\run-in-wsl.exe"" ""%1"""; Tasks: AddRunToShFiles
+
+[Run]
+Filename: "https://www.youtube.com/watch?v=hSHxPPV2zKU&list=PLYooEAFUfhDfevWFKLa7gh3BogBUAebYO"; Description: " ♪ "; Flags: nowait postinstall shellexec skipifsilent unchecked
 
 [Code]
 const EnvironmentKey = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
@@ -264,4 +268,10 @@ begin
     RemoveFromPath(ExpandConstant('{app}'));
     UpdateVSCodeRegistryKeys();
   end;
+end;
+
+procedure InitializeWizard;
+begin
+  WizardForm.LicenseMemo.Font.Name := 'Consolas';
+  WizardForm.LicenseMemo.UseRichEdit := False;
 end;

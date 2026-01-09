@@ -42,7 +42,7 @@ fn main() {
     use wsl_tools::message_box;
 
     std::panic::set_hook(Box::new(|info| {
-        message_box::show(info.to_string(), None::<&str>, None);
+        message_box::show(info.to_string(), None, None);
         std::process::exit(1);
     }));
 
@@ -86,7 +86,7 @@ fn main() {
     })();
 
     if let Err(err) = result {
-        message_box::show(format!("{err:?}"), None::<&str>, None);
+        message_box::show(format!("{err:?}"), None, None);
         std::process::exit(1);
     }
 }
