@@ -1,6 +1,6 @@
 [package]
 name = "wsl-tools"
-version = "1.4.1"
+version = "1.4.2"
 authors = ["Max Kagamine"]
 repository = "https://github.com/maxkagamine/wsl-tools"
 license = "Apache-2.0"
