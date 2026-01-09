@@ -39,7 +39,7 @@ fn main() {
     use anyhow::{Context, Result, anyhow};
     use shell_escape;
     use std::{os::windows::process::CommandExt, process::Command};
-    use wsl_tools::message_box;
+    use wsl_tools::{message_box, wslpath};
 
     std::panic::set_hook(Box::new(|info| {
         message_box::show(info.to_string(), None, None);
@@ -48,14 +48,18 @@ fn main() {
 
     let result = (|| -> Result<()> {
         let args = Args::try_parse()?;
-        let path = std::fs::canonicalize(&args.path)?;
+        let path = std::path::absolute(&args.path)?;
 
         if !path.is_file() {
             return Err(anyhow!("\"{}\" is not a file.", &args.path));
         }
 
-        // These can't panic since we know it's a path to a file. Don't even need to use wslpath;
-        // WSL will take care of that for us just by setting the current directory.
+        // Make sure the path is mounted first, as wsl.exe will start in the home directory if not
+        if wslpath::to_wsl(&path).is_err() {
+            return Err(anyhow!("\"{}\" is not mounted in WSL.", &args.path));
+        }
+
+        // These can't panic since we know it's a path to a file
         let dir = path.parent().unwrap();
         let file = path
             .file_name()
