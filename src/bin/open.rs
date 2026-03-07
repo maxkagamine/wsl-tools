@@ -10,8 +10,8 @@ use clap::Parser;
     about = "\
 Opens the given files or URLs in their default programs (directories open in Explorer).
 
-For details regarding \x1b[1m--verb\x1b[m, see:
-\x1b[4;34mhttps://learn.microsoft.com/en-us/windows/win32/shell/launch#object-verbs\x1b[m
+For details regarding --verb, see:
+https://learn.microsoft.com/en-us/windows/win32/shell/launch#object-verbs
 ",
     version = concat!(clap::crate_version!(), "
 Copyright (c) Max Kagamine
