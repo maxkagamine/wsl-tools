@@ -17,6 +17,8 @@
 
 Clipboard (xsel), recycle, and open commands for WSL written in Rust. I created this after getting fed up with PowerShell-based solutions being slow and janky (e.g. not handling Unicode properly). Human-coded, as with all of my work.
 
+Notably, `recycle` can act as an `rm` replacement and supports the Freedesktop.org trash can (the equivalent of the Recycle Bin in desktop Linux distros). [See below](#recycle) for details.
+
 The programs come with both Linux and Windows binaries: the former is used to translate paths / check pipes before passing things along to the exe to call the relevant winapis. The exe's aren't WSL-specific and can be used by themselves in batch scripts etc. if needed.
 
 As a bonus, I've added two options to the installer (if you choose to use it):
@@ -100,6 +102,8 @@ Miscellaneous options
 
 Recycles files & directories either interactively (as though deleted from Explorer) or as a replacement for `rm` (attempt recycle, nuke otherwise). See the [remarks in source](src/recycle_bin.rs) for details. [Benchmark here.](https://github.com/maxkagamine/wsl-tools/releases/tag/v1.4.0)
 
+When recycling files in the WSL filesystem (including with `--rm`), you can choose in the installer whether to delete them permanently or use the [Freedesktop.org trash can](https://specifications.freedesktop.org/trash/1.0/) (the equivalent of the Recycle Bin in desktop Linux distros). Although not required, if you choose the latter, I recommend installing [**trash-cli**](https://github.com/andreafrancia/trash-cli), which you can use to set a cronjob to remove old files from the trash (as shown in its readme).
+
 > [!TIP]
 > You can alias `rm` to `recycle` in your .bashrc or similar to avoid accidentally deleting things in locations where recycling is possible:
 > ```bash
@@ -114,7 +118,7 @@ Recycles files & directories either interactively (as though deleted from Explor
 > Note that the `-i`/`-I` and `-d` options from [`rm`](https://linux.die.net/man/1/rm) are not currently implemented here.
 
 > [!NOTE]
-> If you get an "Element not found." error when trying to recycle files in the WSL filesystem, try `wsl.exe --update` and/or restarting. This appears to be a bug in WSL ([microsoft/WSL#12444](https://github.com/microsoft/WSL/issues/12444), [microsoft/WSL#11252](https://github.com/microsoft/WSL/issues/11252)).
+> If you get an "Element not found." error when trying to recycle files in the WSL filesystem, try `wsl.exe --update` and/or restarting. This is a bug in older versions of WSL. ([microsoft/WSL#12444](https://github.com/microsoft/WSL/issues/12444), [microsoft/WSL#11252](https://github.com/microsoft/WSL/issues/11252))
 
 ```
 Usage: recycle [OPTIONS] <PATHS>...
@@ -139,20 +143,26 @@ Options:
       --rm
           Hide all dialogs and let the shell permanently delete anything it
           can't recycle. Directories will produce an error unless --recursive.
-          Files in the WSL filesystem will be deleted Linux-side.
+          Files in the WSL filesystem will be deleted Linux-side (unless using
+          the Linux trash).
           
-          Warning: this may result in files that could have been recycled
-          beingnuked instead; see comment in `recycle_bin.rs` for details.
+          Warning: this may result in files that could have been recycled being
+          nuked instead; see comment in `recycle_bin.rs` for details.
   -r, --recursive
           Allow recycling and deleting directories when --rm is used. No effect
           without --rm (the shell will display a dialog instead).
   -v, --verbose
           Show recycle progress in the terminal.
+      --use-linux-trash
+          Use the Freedesktop.org trash can when recycling files in the WSL
+          filesystem.
+      --no-use-linux-trash
+          Delete files in the WSL filesystem permanently (with a dialog if not
+          --rm).
   -h, --help
           Print help
   -V, --version
           Print version
-
 ```
 
 ## open

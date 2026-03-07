@@ -15,7 +15,9 @@
   </sub></sup>
 </h1>
 
-WSL用のRust製クリップボード（xsel）とゴミ箱（recycle）とオーペン（open）のコマンドです。遅くて時々壊れる（Unicodeに正しく対応しないなど）PowerShellベースのソリューションにうんざりしたため、自作しました。私の他の作品と同様に人間製のコードです。
+WSL用のRust製クリップボード（xsel）とごみ箱（recycle）とオーペン（open）のコマンドです。遅くて時々壊れる（Unicodeに正しく対応しないなど）PowerShellベースのソリューションにうんざりしたため、自作しました。私の他の作品と同様に人間製のコードです。
+
+特に、`recycle`は`rm`の代替として機能し、Freedesktop.orgのごみ箱（デスクトップLinuxディストリビューションの相当）をサポートします。詳細は[以下を参照](#recycle)してください。
 
 それぞれのプログラムはLinuxバイナリもWindowsバイナリも含まれています。前者はパスの変換やパイプの確認を行った上で、WINAPIを呼び出すためにexeに処理を渡します。そのexeはWSL専用ではなく、バッチスクリプトなどで単独で使用することも可能です。
 
@@ -99,6 +101,8 @@ Xオプション
 
 ファイルとディレクトリをインタラクティブに（エクスプローラから削除したかのように）ごみ箱に移動するか、または`rm`コマンドの代替として処理する（ごみ箱への移動を試行し、失敗した場合は完全に削除する）。Windowsのごみ箱が英語で「Recycle Bin」と呼ばれているため、この名前を付けました。詳しくは[ソースで注釈](src/recycle_bin.rs)を参照してください。[ベンチマークはここにあります。](https://github.com/maxkagamine/wsl-tools/releases/tag/v1.4.0)
 
+WSLファイルシステム上のファイルをごみ箱に移動しようとする場合（`--rm`を含む）、インストーラーで永久に削除するか、あるいは[Freedesktop.orgのごみ箱](https://specifications.freedesktop.org/trash/1.0/)（デスクトップLinuxディストリビューションの相当）を使用するかを選択できます。必須ではありませんが、後者を選ぶと、[**trash-cli**](https://github.com/andreafrancia/trash-cli)をインストールすることをおすすめします。これを使用して、ごみ箱から古いファイルを削除するcronジョブを設定できます（そのreadmeに示されているように）。
+
 > [!TIP]
 > ごみ箱のある場所でのファイルを誤って削除しないように、.bashrcなどで`rm`を`recycle`にエイリアスできます：
 > ```bash
@@ -113,7 +117,7 @@ Xオプション
 > なお、[`rm`](https://linux.die.net/man/1/rm)の`-i`/`-I`と`-d`オプションは現在ここで実装されていません。
 
 > [!NOTE]
-> WSLファイルシステム上のファイルをごみ箱に移動してみる時に「Element not found.」というエラーが出る場合は、`wsl.exe --update`を実行、および/または再起動してみてください。これはWSLのバグのようです（[microsoft/WSL#12444](https://github.com/microsoft/WSL/issues/12444), [microsoft/WSL#11252](https://github.com/microsoft/WSL/issues/11252)）。
+> WSLファイルシステム上のファイルをごみ箱に移動しようとする時に「Element not found.」というエラーが出る場合は、`wsl.exe --update`を実行、および/または再起動してみてください。これはWSLの古いバージョンのバグです。（[microsoft/WSL#12444](https://github.com/microsoft/WSL/issues/12444), [microsoft/WSL#11252](https://github.com/microsoft/WSL/issues/11252)）
 
 ```
 使い方: recycle [オプション] <パス>...
@@ -137,7 +141,8 @@ Xオプション
       --rm
           すべてのダイアログを非表示にして、シェルがごみ箱に移動できないものを永久に削除
           させる。--recursiveを指定しないと、ディレクトリはエラーを引き起こす。
-          WSLファイルシステム上のファイルはLinux側で削除される。
+          WSLファイルシステム上のファイルはLinux側で削除される（Linux側のごみ箱を使用
+          していない限り）。
 
           警告：ごみ箱に移動できたはずのファイルが削除される可能性がある。
           詳細はrecycle_bin.rsのコメントを参照してください。
@@ -146,6 +151,12 @@ Xオプション
           効果がない（代わりにシェルがダイアログを表示する）。
   -v, --verbose
           削除進捗をターミナルで表示する
+      --use-linux-trash
+          WSLファイルシステム上のファイルをごみ箱に移動している時にFreedesktop.org
+          のごみ箱を使用する。
+      --no-use-linux-trash
+          WSLファイルシステム上のファイルを永久に削除する（--rmではない場合、ダイアログ
+          を表示）
   -h, --help
           ヘルプを表示する
   -V, --version
