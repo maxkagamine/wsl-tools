@@ -71,6 +71,7 @@ fn main() {
 
 #[cfg(unix)]
 fn main() {
+    use std::process::Stdio;
     use wsl_tools::{exe_command, exe_exec, wslpath};
 
     let args = Args::parse();
@@ -110,6 +111,9 @@ fn main() {
             }
         }
     }
+
+    // Redirect stdin to prevent the interop layer from consuming stdin & breaking read loops
+    cmd.stdin(Stdio::null());
 
     exe_exec!(cmd);
 }

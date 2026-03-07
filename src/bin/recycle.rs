@@ -127,7 +127,9 @@ fn main() {
 
 #[cfg(unix)]
 fn main() {
-    use std::{cell::LazyCell, fs::Metadata, io::ErrorKind, os::linux::fs::MetadataExt};
+    use std::{
+        cell::LazyCell, fs::Metadata, io::ErrorKind, os::linux::fs::MetadataExt, process::Stdio,
+    };
     use wsl_tools::{exe_command, exe_exec, wslpath};
 
     let args = Args::parse();
@@ -240,6 +242,9 @@ fn main() {
     }
 
     if any_to_recycle {
+        // Redirect stdin to prevent the interop layer from consuming stdin & breaking read loops
+        cmd.stdin(Stdio::null());
+
         exe_exec!(cmd);
     }
 }

@@ -187,12 +187,24 @@ fn get_clipboard(args: &Args) -> anyhow::Result<Option<String>> {
 
 #[cfg(unix)]
 fn main() {
+    use std::process::Stdio;
     use wsl_tools::{exe_command, exe_exec};
 
     let stdin_is_tty = std::io::stdin().is_terminal();
     let stdout_is_tty = std::io::stdout().is_terminal();
 
     let mut cmd = exe_command!();
+
+    // Figure out whether the exe will need stdin and, if not, redirect it to prevent the interop
+    // layer from consuming stdin & breaking read loops.
+    let args = Args::parse();
+    let will_need_stdin = !args.keep
+        && !args.exchange
+        && !args.clear
+        && (args.append || args.input || (!args.output && !stdin_is_tty));
+    if !will_need_stdin {
+        cmd.stdin(Stdio::null());
+    }
 
     cmd.args(std::env::args_os().skip(1))
         .arg(format!("--stdin-is-tty={stdin_is_tty}"))
