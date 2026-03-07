@@ -50,6 +50,12 @@ en.AddRunToShFiles=Add "%1" to context menu of .sh files
 ja.AddRunToShFiles=.shファイルのコンテクストメニューに「%1」を追加する
 en.RunContextMenuText=Run
 ja.RunContextMenuText=実行
+en.LinuxTrashGroup=%nWhen recycling files in the WSL filesystem...
+ja.LinuxTrashGroup=%nWSLファイルシステム上のファイルをごみ箱に移動しようとする時に…
+en.UseLinuxTrash=Use the Freedesktop.org trash can
+ja.UseLinuxTrash=Freedesktop.orgのごみ箱を使用する
+en.NoUseLinuxTrash=Delete them permanently
+ja.NoUseLinuxTrash=永久に削除する
 
 [Files]
 Source: "dist\wsl-tools\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -58,6 +64,8 @@ Source: "dist\wsl-tools\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdir
 Name: "AddToPath"; Description: "{cm:AddToPath}"
 Name: "AddRunToShFiles"; Description: "{cm:AddRunToShFiles,{cm:RunContextMenuText}}"; Flags: unchecked
 Name: "MakeVSCodeOpenInWsl"; Description: "{cm:MakeVSCodeOpenInWsl}"; Flags: unchecked; Check: IsVSCodeInstalled
+Name: "NoUseLinuxTrash"; Description: "{cm:NoUseLinuxTrash}"; GroupDescription: "{cm:LinuxTrashGroup}"; Flags: exclusive
+Name: "UseLinuxTrash"; Description: "{cm:UseLinuxTrash}"; GroupDescription: "{cm:LinuxTrashGroup}"; Flags: exclusive unchecked
 
 [Registry]
 #define SFA "SOFTWARE\Classes\SystemFileAssociations"
@@ -65,6 +73,13 @@ Root: HKLM; Subkey: "{#SFA}\.sh"; Flags: uninsdeletekeyifempty; Tasks: AddRunToS
 Root: HKLM; Subkey: "{#SFA}\.sh\shell"; Flags: uninsdeletekeyifempty; Tasks: AddRunToShFiles
 Root: HKLM; Subkey: "{#SFA}\.sh\shell\run-in-wsl"; ValueType: string; ValueName: ""; ValueData: "{cm:RunContextMenuText}"; Flags: uninsdeletekey; Tasks: AddRunToShFiles
 Root: HKLM; Subkey: "{#SFA}\.sh\shell\run-in-wsl\command"; ValueType: string; ValueName: ""; ValueData: """{app}\run-in-wsl.exe"" ""%1"""; Tasks: AddRunToShFiles
+
+[INI]
+Filename: "{app}\wsl-tools.ini"; Section: "config"; Key: "use_linux_trash"; String: "yes"; Tasks: UseLinuxTrash
+Filename: "{app}\wsl-tools.ini"; Section: "config"; Key: "use_linux_trash"; String: "no"; Tasks: NoUseLinuxTrash
+
+[UninstallDelete]
+Type: files; Name: "{app}\wsl-tools.ini"
 
 [Run]
 Filename: "https://www.youtube.com/watch?v=hSHxPPV2zKU&list=PLYooEAFUfhDfevWFKLa7gh3BogBUAebYO"; Description: " ♪ "; Flags: nowait postinstall shellexec skipifsilent unchecked

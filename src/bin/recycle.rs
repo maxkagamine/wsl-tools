@@ -49,9 +49,9 @@ struct Args {
     #[arg(long, help = if cfg!(unix) {
         "Hide all dialogs and let the shell permanently delete anything it can't recycle. \
         Directories will produce an error unless --recursive. Files in the WSL filesystem will be \
-        deleted Linux-side (unless --use-linux-trash or WSL_TOOLS_USE_LINUX_TRASH is set).\n\n\
-        Warning: this may result in files that could have been recycled being nuked instead; see \
-        comment in `recycle_bin.rs` for details."
+        deleted Linux-side (unless using the Linux trash).\n\nWarning: this may result in files \
+        that could have been recycled being nuked instead; see comment in `recycle_bin.rs` for \
+        details."
     } else {
         "Hide all dialogs and let the shell permanently delete anything it can't recycle. \
         Directories will produce an error unless --recursive. Note that files in the WSL \
@@ -70,11 +70,15 @@ struct Args {
     #[arg(short, long, help = "Show recycle progress in the terminal.")]
     verbose: bool,
 
-    #[arg(long, env = "WSL_TOOLS_USE_LINUX_TRASH", help = "\
-        Use the Freedesktop.org trash can when recycling files in the WSL filesystem. By default, \
-        recycle will delete them permanently if --rm, or hand them off to the Windows shell which \
-        will display a dialog to do so instead.")]
+    #[cfg(unix)]
+    #[arg(long, overrides_with = "no_use_linux_trash", help = "\
+        Use the Freedesktop.org trash can when recycling files in the WSL filesystem.")]
     use_linux_trash: bool,
+
+    #[cfg(unix)]
+    #[arg(long, help = "\
+        Delete files in the WSL filesystem permanently (with a dialog if not --rm).")]
+    no_use_linux_trash: bool,
 }
 
 #[cfg(windows)]
@@ -135,12 +139,33 @@ fn main() {
 #[cfg(unix)]
 #[allow(clippy::too_many_lines)] // Willie hears ya, Willie don't care
 fn main() {
+    use clap::{CommandFactory, FromArgMatches};
     use std::{
         cell::LazyCell, fs::Metadata, io::ErrorKind, os::linux::fs::MetadataExt, process::Stdio,
     };
-    use wsl_tools::{exe_command, exe_exec, wslpath};
+    use wsl_tools::{config::get_config, exe_command, exe_exec, wslpath};
 
-    let args = Args::parse();
+    let config = get_config();
+
+    let args_matches = Args::command()
+        .mut_arg(
+            if config.use_linux_trash {
+                "use_linux_trash"
+            } else {
+                "no_use_linux_trash"
+            },
+            |arg| {
+                let new_help = arg.get_help().unwrap().to_string()
+                    + if config.ini_exists {
+                        " (Default - set in the installer)"
+                    } else {
+                        " (Default)"
+                    };
+                arg.help(new_help)
+            },
+        )
+        .get_matches();
+    let args = Args::from_arg_matches(&args_matches).unwrap(); // Won't panic
 
     let mut cmd = exe_command!();
 
@@ -164,6 +189,9 @@ fn main() {
     let mut any_to_recycle = false;
     let mut linux_paths: Vec<(String, Metadata)> = Vec::new();
 
+    let use_linux_trash =
+        args.use_linux_trash || (!args.no_use_linux_trash && config.use_linux_trash);
+
     cmd.arg("--");
 
     // Convert WSL paths to Windows paths. The `symlink_to_windows` function runs wslpath on the
@@ -172,7 +200,7 @@ fn main() {
     // overridden: https://github.com/microsoft/WSL/blob/2.7.0/src/linux/init/wslpath.cpp#L428).
     for path in args.paths {
         match wslpath::symlink_to_windows(&path) {
-            Ok(x) if (args.rm || args.use_linux_trash) && x.starts_with(r"\\wsl.localhost\") => {
+            Ok(x) if (args.rm || use_linux_trash) && x.starts_with(r"\\wsl.localhost\") => {
                 // For paths in the WSL filesystem, we can unlink them here. If --rm wasn't given
                 // and we're not using the Linux trash, we'll skip this so that the shell can
                 // display a dialog.
@@ -229,7 +257,7 @@ fn main() {
     }
 
     for (path, stat) in linux_paths {
-        if args.use_linux_trash {
+        if use_linux_trash {
             // This is slightly inefficient compared to delete_all, but unfortunately the trash
             // crate doesn't give us callbacks or a way to ignore not found errors (if -f)
             match trash::delete(&path) {

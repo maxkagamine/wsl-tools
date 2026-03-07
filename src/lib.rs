@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 
 pub mod clipboard;
+pub mod config;
 pub mod macros;
 pub mod message_box;
 pub mod process;
