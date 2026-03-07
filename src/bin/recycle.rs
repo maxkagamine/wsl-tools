@@ -49,8 +49,9 @@ struct Args {
     #[arg(long, help = if cfg!(unix) {
         "Hide all dialogs and let the shell permanently delete anything it can't recycle. \
         Directories will produce an error unless --recursive. Files in the WSL filesystem will be \
-        deleted Linux-side.\n\nWarning: this may result in files that could have been recycled \
-         beingnuked instead; see comment in `recycle_bin.rs` for details."
+        deleted Linux-side (unless --use-linux-trash or WSL_TOOLS_USE_LINUX_TRASH is set).\n\n\
+        Warning: this may result in files that could have been recycled being nuked instead; see \
+        comment in `recycle_bin.rs` for details."
     } else {
         "Hide all dialogs and let the shell permanently delete anything it can't recycle. \
         Directories will produce an error unless --recursive. Note that files in the WSL \
@@ -68,6 +69,12 @@ struct Args {
 
     #[arg(short, long, help = "Show recycle progress in the terminal.")]
     verbose: bool,
+
+    #[arg(long, env = "WSL_TOOLS_USE_LINUX_TRASH", help = "\
+        Use the Freedesktop.org trash can when recycling files in the WSL filesystem. By default, \
+        recycle will delete them permanently if --rm, or hand them off to the Windows shell which \
+        will display a dialog to do so instead.")]
+    use_linux_trash: bool,
 }
 
 #[cfg(windows)]
@@ -126,6 +133,7 @@ fn main() {
 }
 
 #[cfg(unix)]
+#[allow(clippy::too_many_lines)] // Willie hears ya, Willie don't care
 fn main() {
     use std::{
         cell::LazyCell, fs::Metadata, io::ErrorKind, os::linux::fs::MetadataExt, process::Stdio,
@@ -154,87 +162,119 @@ fn main() {
 
     let root_dev_inode: LazyCell<Metadata> = LazyCell::new(|| fs::symlink_metadata("/").unwrap());
     let mut any_to_recycle = false;
+    let mut linux_paths: Vec<(String, Metadata)> = Vec::new();
 
-    if !args.paths.is_empty() {
-        cmd.arg("--");
+    cmd.arg("--");
 
-        // Convert WSL paths to Windows paths. The `symlink_to_windows` function runs wslpath on the
-        // dirname and then appends the basename, as wslpath resolves symlinks when converting from
-        // WSL to Windows paths (this is hardcoded in the source and unfortunately can't be
-        // overridden: https://github.com/microsoft/WSL/blob/2.7.0/src/linux/init/wslpath.cpp#L428).
-        for path in args.paths {
-            match wslpath::symlink_to_windows(&path) {
-                Ok(x) if args.rm && x.starts_with(r"\\wsl.localhost\") => {
-                    // For paths in the WSL filesystem, we can unlink them here. If --rm wasn't
-                    // given, we'll skip this so that the shell can display a dialog. Note that we
-                    // use symlink_metadata (lstat) here instead of metadata (stat) to be consistent
-                    // with `rm` and not follow symlinks (even if --recursive).
-                    let stat = match fs::symlink_metadata(&path) {
-                        Ok(m) => m,
-                        Err(err) if err.kind() == ErrorKind::NotFound => {
-                            if args.force {
-                                continue;
-                            }
-                            eprintln!(
-                                "recycle: Failed to delete \"{path}\": No such file or directory."
-                            );
-                            std::process::exit(1);
+    // Convert WSL paths to Windows paths. The `symlink_to_windows` function runs wslpath on the
+    // dirname and then appends the basename, as wslpath resolves symlinks when converting from
+    // WSL to Windows paths (this is hardcoded in the source and unfortunately can't be
+    // overridden: https://github.com/microsoft/WSL/blob/2.7.0/src/linux/init/wslpath.cpp#L428).
+    for path in args.paths {
+        match wslpath::symlink_to_windows(&path) {
+            Ok(x) if (args.rm || args.use_linux_trash) && x.starts_with(r"\\wsl.localhost\") => {
+                // For paths in the WSL filesystem, we can unlink them here. If --rm wasn't given
+                // and we're not using the Linux trash, we'll skip this so that the shell can
+                // display a dialog.
+                //
+                // Note that we use symlink_metadata (lstat) here instead of metadata (stat) to be
+                // consistent with `rm` and not follow symlinks (even if --recursive).
+                let stat = match fs::symlink_metadata(&path) {
+                    Ok(m) => m,
+                    Err(err) if err.kind() == ErrorKind::NotFound => {
+                        if args.force {
+                            continue;
                         }
-                        Err(err) => {
-                            eprintln!("recycle: Failed to stat \"{path}\": {err}");
-                            std::process::exit(1);
-                        }
-                    };
-
-                    // https://github.com/coreutils/coreutils/blob/master/src/rm.c
-                    if stat.st_dev() == root_dev_inode.st_dev()
-                        && stat.st_ino() == root_dev_inode.st_ino()
-                    {
-                        if path == "/" {
-                            eprintln!("recycle: Refusing to delete \"/\".");
-                        } else {
-                            eprintln!("recycle: Refusing to delete \"{path}\" (same as \"/\").");
-                        }
+                        eprintln!(
+                            "recycle: Failed to delete \"{path}\": No such file or directory."
+                        );
                         std::process::exit(1);
                     }
+                    Err(err) => {
+                        eprintln!("recycle: Failed to stat \"{path}\": {err}");
+                        std::process::exit(1);
+                    }
+                };
 
-                    let result = if stat.is_dir() {
-                        if !args.recursive {
-                            eprintln!("recycle: Cannot remove \"{path}\": Is a directory.");
-                            std::process::exit(1);
-                        }
-                        fs::remove_dir_all(&path)
+                // https://github.com/coreutils/coreutils/blob/master/src/rm.c
+                if stat.st_dev() == root_dev_inode.st_dev()
+                    && stat.st_ino() == root_dev_inode.st_ino()
+                {
+                    if path == "/" {
+                        eprintln!("recycle: Refusing to delete \"/\".");
                     } else {
-                        fs::remove_file(&path)
-                    };
+                        eprintln!("recycle: Refusing to delete \"{path}\" (same as \"/\").");
+                    }
+                    std::process::exit(1);
+                }
 
-                    match result {
-                        Ok(()) => {
-                            if args.verbose {
-                                println!("recycle: Removed \"{path}\"");
-                            }
-                        }
-                        Err(err) if err.kind() == ErrorKind::NotFound => {
-                            if args.force {
-                                continue;
-                            }
-                            eprintln!(
-                                "recycle: Failed to delete \"{path}\": No such file or directory."
-                            );
-                            std::process::exit(1);
-                        }
-                        Err(err) => {
-                            eprintln!("recycle: Failed to delete \"{path}\": {err}");
-                            std::process::exit(1);
-                        }
+                if args.rm && !args.recursive && stat.is_dir() {
+                    eprintln!("recycle: Cannot remove \"{path}\": Is a directory.");
+                    std::process::exit(1);
+                }
+
+                // Queueing so that directory & exists checks happen before anything gets removed,
+                // matching the Windows-side behavior
+                linux_paths.push((path, stat));
+            }
+            Ok(x) => {
+                cmd.arg(x);
+                any_to_recycle = true;
+            }
+            Err(err) => {
+                eprintln!("recycle: Failed to execute wslpath on \"{path}\": {err}");
+                std::process::exit(1);
+            }
+        }
+    }
+
+    for (path, stat) in linux_paths {
+        if args.use_linux_trash {
+            // This is slightly inefficient compared to delete_all, but unfortunately the trash
+            // crate doesn't give us callbacks or a way to ignore not found errors (if -f)
+            match trash::delete(&path) {
+                Ok(()) => {
+                    if args.verbose {
+                        // Not saying "moved to trash" to be consistent with recycling (see above)
+                        println!("recycle: Removed \"{path}\"");
                     }
                 }
-                Ok(x) => {
-                    cmd.arg(x);
-                    any_to_recycle = true;
+                Err(trash::Error::FileSystem { path: _, source })
+                    if source.kind() == ErrorKind::NotFound =>
+                {
+                    if args.force {
+                        continue;
+                    }
+                    eprintln!("recycle: Failed to delete \"{path}\": No such file or directory.");
+                    std::process::exit(1);
                 }
                 Err(err) => {
-                    eprintln!("recycle: Failed to execute wslpath on \"{path}\": {err}");
+                    eprintln!("recycle: Failed to move \"{path}\" to trash: {err:?}");
+                    std::process::exit(1);
+                }
+            }
+        } else {
+            let result = if stat.is_dir() {
+                fs::remove_dir_all(&path)
+            } else {
+                fs::remove_file(&path)
+            };
+
+            match result {
+                Ok(()) => {
+                    if args.verbose {
+                        println!("recycle: Removed \"{path}\"");
+                    }
+                }
+                Err(err) if err.kind() == ErrorKind::NotFound => {
+                    if args.force {
+                        continue;
+                    }
+                    eprintln!("recycle: Failed to delete \"{path}\": No such file or directory.");
+                    std::process::exit(1);
+                }
+                Err(err) => {
+                    eprintln!("recycle: Failed to delete \"{path}\": {err}");
                     std::process::exit(1);
                 }
             }
