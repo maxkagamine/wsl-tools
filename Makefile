@@ -4,7 +4,7 @@ BIN_NAMES:=$(basename $(notdir $(wildcard src/bin/*)))
 WINDOWS_ONLY_BINS:=code-wsl run-in-wsl
 
 TARGET_LINUX:=x86_64-unknown-linux-gnu
-TARGET_WINDOWS:=x86_64-pc-windows-gnu
+TARGET_WINDOWS:=x86_64-pc-windows-msvc
 
 BINS_LINUX:=$(addprefix target/$(TARGET_LINUX)/release/,$(filter-out $(WINDOWS_ONLY_BINS),$(BIN_NAMES)))
 BINS_WINDOWS:=$(addprefix target/$(TARGET_WINDOWS)/release/,$(addsuffix .exe,$(BIN_NAMES)))
@@ -15,6 +15,9 @@ TESTS_WINDOWS:=target/$(TARGET_WINDOWS)/.test
 ALL_TESTS:=$(TESTS_LINUX) $(TESTS_WINDOWS)
 
 SOURCE_FILES:=$(shell fd '\.rs$$') Cargo.toml Cargo.lock
+
+export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUNNER=/usr/bin/env
+export XWIN_ARCH=x86_64
 
 # Installer & zip file
 dist/wsl-tools-installer.exe: $(ALL_BINS) LICENSE.txt Setup.iss
@@ -33,12 +36,13 @@ target/$(TARGET_LINUX)/release/%: $(TESTS_LINUX)
 	cargo build --release --target $(TARGET_LINUX) --bin $*
 
 target/$(TARGET_WINDOWS)/release/%.exe: $(TESTS_WINDOWS)
-	cargo build --release --target $(TARGET_WINDOWS) --bin $*
+	cargo xwin build --release --target $(TARGET_WINDOWS) --bin $*
 
 # Tests for each target depending on **/*.rs, using an empty file to mark the last successful run
+target/%/.test: CARGO=$(if $(filter $(TARGET_WINDOWS),$*),cargo xwin,cargo)
 target/%/.test: $(SOURCE_FILES)
-	cargo clippy --target $* -- -Wclippy::pedantic
-	cargo test --target $* -- --test-threads=1
+	$(CARGO) clippy --target $* -- -Wclippy::pedantic
+	$(CARGO) test --target $* -- --test-threads=1
 	@touch target/$*/.test
 
 .PHONY: test install

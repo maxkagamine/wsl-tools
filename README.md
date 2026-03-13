@@ -38,9 +38,8 @@ or [download zip](https://github.com/maxkagamine/wsl-tools/releases/latest/downl
 
 1. [Install Rust](https://rustup.rs/) (in WSL, not Windows)
 2. [Install Inno Setup 6.6+](https://jrsoftware.org/isdl.php) (Optional)
-3. Set up for cross-compilation:
-   - Ubuntu: `sudo apt-get install mingw-w64 && rustup target add x86_64-pc-windows-gnu`
-   - Arch: `sudo pacman -Syu mingw-w64 && rustup target add x86_64-pc-windows-gnu`
+3. Set up for cross-compilation:  
+   `cargo install --locked cargo-xwin && rustup target add x86_64-pc-windows-msvc`
 4. Run `make`
 
 ## xsel
